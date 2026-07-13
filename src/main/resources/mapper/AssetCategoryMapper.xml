@@ -5,8 +5,7 @@
 
 <mapper namespace="org.jack.wealthflow.mapper.AssetCategoryMapper">
 
-    <select id="findAll"
-            resultType="org.jack.wealthflow.model.AssetCategory">
+    <select id="findAll" resultType="AssetCategory">
         SELECT
         id,
         name,
@@ -14,5 +13,7 @@
         FROM asset_category
         ORDER BY id
     </select>
+
+
 
 </mapper>

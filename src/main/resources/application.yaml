@@ -8,7 +8,11 @@ spring:
 
   sql:
     init:
-      mode: never
+      mode: always
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: org.jack.wealthflow.model
+  configuration:
+    #开启驼峰命名
+    map-underscore-to-camel-case: true

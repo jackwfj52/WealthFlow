@@ -34,3 +34,11 @@ build/
 
 ### SQLite ###
 *.db
+*.db-shm
+*.db-wal
+
+### Other local files ###
+out/
+.DS_Store
+Thumbs.db
+*.log

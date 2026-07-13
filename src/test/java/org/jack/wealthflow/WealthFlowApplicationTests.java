@@ -26,4 +26,5 @@ class WealthFlowApplicationTests {
 
         assertNotNull(categories);
     }
+
 }
