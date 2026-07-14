@@ -5,6 +5,24 @@
 
 <mapper namespace="org.jack.wealthflow.mapper.AssetCategoryMapper">
 
+    <insert id="insert">
+        INSERT INTO asset_category (name, created_date)
+        VALUES (#{name}, #{createdDate})
+    </insert>
+
+    <update id="update">
+        UPDATE asset_category
+        SET name = #{name}, created_date = #{createdDate}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM asset_category
+        WHERE id = #{id}
+    </delete>
+
+
+
     <select id="findAll" resultType="AssetCategory">
         SELECT
         id,
@@ -14,6 +32,29 @@
         ORDER BY id
     </select>
 
+    <select id="findById" resultType="AssetCategory">
+        SELECT
+        id,
+        name,
+        created_date AS createdDate
+        FROM asset_category
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByName" resultType="AssetCategory">
+        SELECT
+        id,
+        name,
+        created_date AS createdDate
+        FROM asset_category
+        WHERE name = #{name}
+    </select>
+
+    <select id="countSnapshotsByCategoryId" resultType="int">
+        SELECT COUNT(*)
+        FROM asset_snapshot
+        WHERE category_id = #{categoryId}
+    </select>
 
 
 </mapper>
