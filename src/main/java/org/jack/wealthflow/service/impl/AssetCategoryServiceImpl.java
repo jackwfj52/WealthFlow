@@ -44,7 +44,7 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         }
 
         // 验证名称长度
-        if (name.length() > 50) {
+        if (name.length() > 20) {
             throw new IllegalArgumentException(MessageConstant.NAME_NOT_TOO_LONG);
         }
 
