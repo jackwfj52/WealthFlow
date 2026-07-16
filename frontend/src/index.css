@@ -1,0 +1,22 @@
+/* WealthFlow 全局样式 */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* antd 表格行 hover 效果优化 */
+.ant-table-row {
+  cursor: default;
+}
+
+/* 金额等宽数字 */
+[data-amount] {
+  font-variant-numeric: tabular-nums;
+}
