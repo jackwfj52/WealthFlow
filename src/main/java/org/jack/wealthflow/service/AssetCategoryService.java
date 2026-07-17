@@ -13,10 +13,18 @@ public interface AssetCategoryService {
     List<AssetCategory> findAll();
 
     /**
-     * 插入资产类别
-     * @param category
+     * 根据ID查询资产类别
+     * @param id
+     * @return 资产类别
      */
-    void insert(AssetCategory category);
+    AssetCategory findById(Long id);
+
+    /**
+     * 插入资产类别
+     * @param category 待插入的资产类别
+     * @return 已保存的资产类别，包含数据库生成的ID
+     */
+    AssetCategory insert(AssetCategory category);
 
     /**
      * 更新资产类别

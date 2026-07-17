@@ -30,12 +30,24 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         return assetCategoryMapper.findAll();
     }
 
+
     /**
-     * 插入资产类别
-     * @param category
+     * 根据ID查询资产类别
+     * @param id
+     * @return 资产类别
      */
     @Override
-    public void insert(AssetCategory category) {
+    public AssetCategory findById(Long id) {
+        return assetCategoryMapper.findById(id);
+    }
+
+    /**
+     * 插入资产类别
+     * @param category 待插入的资产类别
+     * @return 已保存的资产类别，包含数据库生成的ID
+     */
+    @Override
+    public AssetCategory insert(AssetCategory category) {
 
         String name = normalizeName(category.getName());
         // 验证名称是否为空
@@ -62,6 +74,8 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         if (rows != 1) {
             throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_ADD_FAILED);
         }
+
+        return category;
     }
 
     /**
