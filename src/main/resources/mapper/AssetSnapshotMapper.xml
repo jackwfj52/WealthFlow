@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.jack.wealthflow.mapper.AssetSnapshotMapper">
+
+    <resultMap id="AssetSnapshotResultMap"
+               type="org.jack.wealthflow.model.AssetSnapshot">
+        <id property="id" column="id"/>
+        <result property="snapshotDate" column="snapshot_date"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="amount" column="amount"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, snapshot_date, category_id, amount
+    </sql>
+
+    <select id="findAll" resultMap="AssetSnapshotResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM asset_snapshot
+        ORDER BY snapshot_date DESC, category_id ASC
+    </select>
+
+    <select id="findById" resultMap="AssetSnapshotResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM asset_snapshot
+        WHERE id = #{id}
+    </select>
+
+    <select id="findBySnapshotDate" resultMap="AssetSnapshotResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM asset_snapshot
+        WHERE snapshot_date = #{snapshotDate}
+        ORDER BY category_id ASC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO asset_snapshot (snapshot_date, category_id, amount)
+        VALUES (#{snapshotDate}, #{categoryId}, #{amount})
+        <selectKey keyProperty="id" resultType="long" order="AFTER">
+            SELECT last_insert_rowid()
+        </selectKey>
+    </insert>
+
+    <delete id="deleteBySnapshotDate">
+        DELETE FROM asset_snapshot
+        WHERE snapshot_date = #{snapshotDate}
+    </delete>
+
+</mapper>
