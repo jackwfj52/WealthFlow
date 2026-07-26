@@ -1,10 +1,11 @@
 package org.jack.wealthflow.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.dto.ApiResponse;
 import org.jack.wealthflow.dto.CategoryRequest;
 import org.jack.wealthflow.dto.CategoryResponse;
+import org.jack.wealthflow.exception.BusinessException;
+import org.jack.wealthflow.exception.ErrorCode;
 import org.jack.wealthflow.model.AssetCategory;
 import org.jack.wealthflow.service.AssetCategoryService;
 import org.springframework.http.HttpStatus;
@@ -39,7 +40,10 @@ public class AssetCategoryController {
         AssetCategory category = assetCategoryService.findById(id);
         // 2. 为空时抛出“不存在”异常
         if (category == null) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_NOT_FOUND);
+            throw new BusinessException(
+                    ErrorCode.CATEGORY_NOT_FOUND,
+                    ErrorCode.CATEGORY_NOT_FOUND.getMessage()
+            );
         }
         // 3. 转换为 CategoryResponse
         return ResponseEntity.ok(

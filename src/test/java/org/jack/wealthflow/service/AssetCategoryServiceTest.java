@@ -1,5 +1,7 @@
 package org.jack.wealthflow.service;
 
+import org.jack.wealthflow.exception.BusinessException;
+import org.jack.wealthflow.exception.ErrorCode;
 import org.jack.wealthflow.mapper.AssetCategoryMapper;
 import org.jack.wealthflow.model.AssetCategory;
 import org.jack.wealthflow.service.impl.AssetCategoryServiceImpl;
@@ -71,10 +73,13 @@ class AssetCategoryServiceTest {
         when(assetCategoryMapper.findByName("股票"))
                 .thenReturn(existing);
 
-        assertThrows(
-                IllegalStateException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> assetCategoryService.insert(category)
         );
+
+        assertEquals(ErrorCode.CATEGORY_NAME_EXISTS, exception.getErrorCode());
+        assertEquals("名称已存在", exception.getMessage());
 
         verify(assetCategoryMapper, never())
                 .insert(any(AssetCategory.class));
@@ -104,10 +109,13 @@ class AssetCategoryServiceTest {
         when(assetCategoryMapper.countSnapshotsByCategoryId(1L))
                 .thenReturn(2);
 
-        assertThrows(
-                IllegalStateException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> assetCategoryService.deleteById(1L)
         );
+
+        assertEquals(ErrorCode.CATEGORY_HAS_SNAPSHOTS, exception.getErrorCode());
+        assertEquals("资产分类下存在快照，无法删除", exception.getMessage());
 
         verify(assetCategoryMapper, never())
                 .deleteById(anyLong());

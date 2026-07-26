@@ -6,6 +6,8 @@ import org.jack.wealthflow.mapper.AssetCategoryMapper;
 import org.jack.wealthflow.model.AssetCategory;
 import org.jack.wealthflow.service.AssetCategoryService;
 import org.springframework.stereotype.Service;
+import org.jack.wealthflow.exception.BusinessException;
+import org.jack.wealthflow.exception.ErrorCode;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -52,17 +54,26 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         String name = normalizeName(category.getName());
         // 验证名称是否为空
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(MessageConstant.NAME_NOT_EMPTY);
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.NAME_NOT_EMPTY
+            );
         }
 
         // 验证名称长度
         if (name.length() > 20) {
-            throw new IllegalArgumentException(MessageConstant.NAME_NOT_TOO_LONG);
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.NAME_NOT_TOO_LONG
+            );
         }
 
         // 验证名称是否已存在
         if (assetCategoryMapper.findByName(name) != null) {
-            throw new IllegalStateException(MessageConstant.NAME_ALREADY_EXISTS);
+            throw new BusinessException(
+                    ErrorCode.CATEGORY_NAME_EXISTS,
+                    MessageConstant.NAME_ALREADY_EXISTS
+            );
         }
 
         // 设置名称和创建日期
@@ -72,7 +83,10 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         int rows = assetCategoryMapper.insert(category);
 
         if (rows != 1) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_ADD_FAILED);
+            throw new BusinessException(
+                    ErrorCode.SERVER_ERROR,
+                    MessageConstant.ASSET_CATEGORY_ADD_FAILED
+            );
         }
 
         return category;
@@ -86,25 +100,37 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
     public void update(AssetCategory category) {
         // 验证ID是否为空
         if (category.getId() == null) {
-            throw new IllegalArgumentException(MessageConstant.ID_NOT_EMPTY);
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.ID_NOT_EMPTY
+            );
         }
 
         AssetCategory existing = assetCategoryMapper.findById(category.getId());
         // 验证资产类别是否存在
         if (existing == null) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_NOT_FOUND);
+            throw new BusinessException(
+                    ErrorCode.CATEGORY_NOT_FOUND,
+                    MessageConstant.ASSET_CATEGORY_NOT_FOUND
+            );
         }
 
         String name = normalizeName(category.getName());
         // 验证名称是否为空
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(MessageConstant.NAME_NOT_EMPTY);
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.NAME_NOT_EMPTY
+            );
         }
 
         AssetCategory sameName = assetCategoryMapper.findByName(name);
         // 验证名称是否已存在
         if (sameName != null && !sameName.getId().equals(category.getId())) {
-            throw new IllegalStateException(MessageConstant.NAME_ALREADY_EXISTS);
+            throw new BusinessException(
+                    ErrorCode.CATEGORY_NAME_EXISTS,
+                    MessageConstant.NAME_ALREADY_EXISTS
+            );
         }
 
         // 设置名称和创建日期
@@ -114,7 +140,10 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         int rows = assetCategoryMapper.update(category);
         // 验证更新是否成功
         if (rows != 1) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_UPDATE_FAILED);
+            throw new BusinessException(
+                    ErrorCode.SERVER_ERROR,
+                    MessageConstant.ASSET_CATEGORY_UPDATE_FAILED
+            );
         }
     }
 
@@ -127,19 +156,28 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         AssetCategory existing = assetCategoryMapper.findById(id);
         // 验证资产类别是否存在
         if (existing == null) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_NOT_FOUND);
+            throw new BusinessException(
+                    ErrorCode.CATEGORY_NOT_FOUND,
+                    MessageConstant.ASSET_CATEGORY_NOT_FOUND
+            );
         }
 
         long snapshotCount = assetCategoryMapper.countSnapshotsByCategoryId(id);
         // 验证资产类别是否有快照关联
         if (snapshotCount > 0) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_HAS_SNAPSHOTS);
+            throw new BusinessException(
+                    ErrorCode.CATEGORY_HAS_SNAPSHOTS,
+                    MessageConstant.ASSET_CATEGORY_HAS_SNAPSHOTS
+            );
         }
 
         int rows = assetCategoryMapper.deleteById(id);
         // 验证删除是否成功
         if (rows != 1) {
-            throw new IllegalStateException(MessageConstant.ASSET_CATEGORY_DELETE_FAILED);
+            throw new BusinessException(
+                    ErrorCode.SERVER_ERROR,
+                    MessageConstant.ASSET_CATEGORY_DELETE_FAILED
+            );
         }
     }
 }
