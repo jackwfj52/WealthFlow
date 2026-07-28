@@ -44,9 +44,22 @@
         </selectKey>
     </insert>
 
+    <update id="update">
+        UPDATE asset_snapshot
+        SET category_id = #{categoryId},
+            amount = #{amount}
+        WHERE id = #{id}
+    </update>
+
     <delete id="deleteBySnapshotDate">
         DELETE FROM asset_snapshot
         WHERE snapshot_date = #{snapshotDate}
+    </delete>
+
+    <delete id="deleteBySnapshotDateExceptId">
+        DELETE FROM asset_snapshot
+        WHERE snapshot_date = #{snapshotDate}
+          AND id != #{id}
     </delete>
 
 </mapper>

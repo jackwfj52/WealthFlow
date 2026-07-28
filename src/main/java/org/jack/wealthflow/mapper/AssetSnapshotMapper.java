@@ -1,6 +1,7 @@
 package org.jack.wealthflow.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.jack.wealthflow.model.AssetSnapshot;
 
 import java.time.LocalDate;
@@ -17,5 +18,12 @@ public interface AssetSnapshotMapper {
 
     int insert(AssetSnapshot snapshot);
 
+    int update(AssetSnapshot snapshot);
+
     int deleteBySnapshotDate(LocalDate snapshotDate);
+
+    int deleteBySnapshotDateExceptId(
+            @Param("snapshotDate") LocalDate snapshotDate,
+            @Param("id") Long id
+    );
 }
