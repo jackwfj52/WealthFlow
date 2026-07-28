@@ -3,6 +3,7 @@ package org.jack.wealthflow.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.dto.AssetSnapshotResponse;
+import org.jack.wealthflow.dto.SnapshotDateExistsResponse;
 import org.jack.wealthflow.dto.SnapshotItem;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.exception.ErrorCode;
@@ -77,10 +78,15 @@ public class AssetSnapshotServiceImpl implements AssetSnapshotService {
         validateSnapshotDate(snapshotDate);
         List<AssetSnapshot> validItems = validateAndCopyItems(items);
 
-        if (!assetSnapshotMapper.findBySnapshotDate(snapshotDate).isEmpty()) {
+        List<AssetSnapshot> existingSnapshots =
+                assetSnapshotMapper.findBySnapshotDate(snapshotDate);
+        if (!existingSnapshots.isEmpty()) {
             throw new BusinessException(
                     ErrorCode.SNAPSHOT_DATE_EXISTS,
-                    MessageConstant.SNAPSHOT_DATE_EXISTS
+                    MessageConstant.SNAPSHOT_DATE_EXISTS,
+                    new SnapshotDateExistsResponse(
+                            String.valueOf(existingSnapshots.get(0).getId())
+                    )
             );
         }
 

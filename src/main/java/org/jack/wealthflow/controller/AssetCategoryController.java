@@ -1,6 +1,7 @@
 package org.jack.wealthflow.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.dto.ApiResponse;
 import org.jack.wealthflow.dto.CategoryRequest;
 import org.jack.wealthflow.dto.CategoryResponse;
@@ -42,7 +43,7 @@ public class AssetCategoryController {
         if (category == null) {
             throw new BusinessException(
                     ErrorCode.CATEGORY_NOT_FOUND,
-                    ErrorCode.CATEGORY_NOT_FOUND.getMessage()
+                    MessageConstant.ASSET_CATEGORY_NOT_FOUND
             );
         }
         // 3. 转换为 CategoryResponse
