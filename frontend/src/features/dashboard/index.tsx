@@ -193,20 +193,19 @@ const Dashboard: React.FC = () => {
   }, [trendData]);
 
   // --- category table columns ---
+  // 三列等宽：不设宽度，由 fixed 布局平均分配
   const categoryColumns = [
     { title: '分类', dataIndex: 'categoryName', key: 'categoryName' },
     {
       title: '金额',
       dataIndex: 'amount',
       key: 'amount',
-      width: 140,
       render: (v: string) => <AmountText amount={v} />,
     },
     {
       title: '占比',
       dataIndex: 'percent',
       key: 'percent',
-      width: 80,
       render: (v: number) => `${v}%`,
     },
   ];
