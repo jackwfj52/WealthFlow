@@ -22,7 +22,7 @@ import {
   aggregateTrendData,
   type Aggregation,
 } from '../../utils/snapshot';
-import { formatAmount, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
+import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 
 const TREND_RANGES: { label: string; days: number }[] = [
   { label: '近7天', days: 7 },
@@ -123,7 +123,9 @@ const Dashboard: React.FC = () => {
       tooltip: {
         trigger: 'item' as const,
         formatter: (params: { name: string; value: number; percent: number }) =>
-          `${params.name}: ¥${formatAmount(params.value)} (${params.percent}%)`,
+          `${params.name}: ${formatCurrency(params.value, settings.currencySymbol, {
+            thousands: settings.thousandsSeparator,
+          })} (${params.percent}%)`,
       },
       legend: { bottom: 0, type: 'scroll' as const },
       series: [
@@ -144,7 +146,7 @@ const Dashboard: React.FC = () => {
         },
       ],
     };
-  }, [categoryPieData]);
+  }, [categoryPieData, settings]);
 
   // --- trend line option ---
   const trendOption = useMemo(() => {
@@ -157,7 +159,9 @@ const Dashboard: React.FC = () => {
         trigger: 'axis' as const,
         formatter: (params: { name: string; value: number }[]) => {
           const p = params[0];
-          return `${p.name}<br/>总资产: ¥${formatAmount(p.value)}`;
+          return `${p.name}<br/>总资产: ${formatCurrency(p.value, settings.currencySymbol, {
+            thousands: settings.thousandsSeparator,
+          })}`;
         },
       },
       grid: { left: 60, right: 20, top: 20, bottom: 30 },
@@ -168,7 +172,9 @@ const Dashboard: React.FC = () => {
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => formatAxisAmount(v, amountUnit) },
+        axisLabel: {
+          formatter: (v: number) => formatAxisAmount(v, amountUnit, settings.currencySymbol),
+        },
       },
       series: [
         {
@@ -192,7 +198,7 @@ const Dashboard: React.FC = () => {
         },
       ],
     };
-  }, [trendData]);
+  }, [trendData, settings]);
 
   // --- category table columns ---
   // 三列等宽：不设宽度，由 fixed 布局平均分配

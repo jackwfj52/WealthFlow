@@ -1,18 +1,47 @@
 import React, { useCallback } from 'react';
-import { Card, Button, Space, Popconfirm, message, Divider, Typography } from 'antd';
+import {
+  Card,
+  Button,
+  Space,
+  Popconfirm,
+  message,
+  Divider,
+  Typography,
+  Segmented,
+  Select,
+  Switch,
+} from 'antd';
 import {
   DeleteOutlined,
   UndoOutlined,
-  SettingOutlined,
 } from '@ant-design/icons';
 import PageHeader from '../../components/PageHeader';
 import { useCategories, useSnapshots } from '../../app/storage';
+import { useSettings, type ThemeMode } from '../../app/settings';
 import { SEED_CATEGORIES, SEED_SNAPSHOTS } from '../../services/mockData';
 import { USE_MOCK, categoryService, snapshotService } from '../../services';
+
+const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
+  label,
+  children,
+}) => (
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 16,
+    }}
+  >
+    <Typography.Text>{label}</Typography.Text>
+    {children}
+  </div>
+);
 
 const Settings: React.FC = () => {
   const { refresh: refreshCategories } = useCategories();
   const { refresh: refreshSnapshots } = useSnapshots();
+  const { settings, updateSettings, resetSettings } = useSettings();
 
   const handleClearAll = useCallback(async () => {
     await categoryService.reset([]);
@@ -32,7 +61,41 @@ const Settings: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="设置" subtitle="数据管理与其他设置" />
+      <PageHeader title="设置" subtitle="数据管理、显示偏好与其他设置" />
+
+      <Card title="显示偏好" style={{ maxWidth: 600, marginBottom: 16 }}>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <SettingRow label="主题">
+            <Segmented
+              options={[
+                { label: '浅色', value: 'light' },
+                { label: '深色', value: 'dark' },
+              ]}
+              value={settings.theme}
+              onChange={(v) => updateSettings({ theme: v as ThemeMode })}
+            />
+          </SettingRow>
+          <SettingRow label="货币符号">
+            <Select
+              style={{ width: 140 }}
+              value={settings.currencySymbol}
+              onChange={(v) => updateSettings({ currencySymbol: v })}
+              options={[
+                { label: '¥ 人民币', value: '¥' },
+                { label: '$ 美元', value: '$' },
+                { label: '€ 欧元', value: '€' },
+                { label: '£ 英镑', value: '£' },
+              ]}
+            />
+          </SettingRow>
+          <SettingRow label="千分位分隔符">
+            <Switch
+              checked={settings.thousandsSeparator}
+              onChange={(v) => updateSettings({ thousandsSeparator: v })}
+            />
+          </SettingRow>
+        </Space>
+      </Card>
 
       <Card title="数据管理" style={{ maxWidth: 600 }}>
         {USE_MOCK ? (
@@ -72,9 +135,9 @@ const Settings: React.FC = () => {
 
         <Divider />
 
-        <Typography.Text type="secondary">
-          <SettingOutlined /> 更多设置功能开发中...
-        </Typography.Text>
+        <Button type="link" onClick={resetSettings} style={{ padding: 0 }}>
+          恢复默认设置
+        </Button>
       </Card>
     </>
   );

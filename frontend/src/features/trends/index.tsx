@@ -27,7 +27,7 @@ import EmptyState from '../../components/EmptyState';
 import { useSnapshots, useCategories } from '../../app/storage';
 import { useSettings } from '../../app/settings';
 import { getCategoryTrendData, aggregateTrendData, type Aggregation } from '../../utils/snapshot';
-import { formatAmount, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
+import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 import { isValidDateRange } from '../../utils/date';
 
 dayjs.extend(customParseFormat);
@@ -137,7 +137,12 @@ const Trends: React.FC = () => {
       tooltip: {
         trigger: 'axis' as const,
         formatter: (params: { seriesName: string; name: string; value: number }[]) => {
-          const lines = params.map((p) => `${p.seriesName}: ¥${formatAmount(p.value)}`);
+          const lines = params.map(
+            (p) =>
+              `${p.seriesName}: ${formatCurrency(p.value, settings.currencySymbol, {
+                thousands: settings.thousandsSeparator,
+              })}`
+          );
           return `${params[0]?.name ?? ''}<br/>${lines.join('<br/>')}`;
         },
       },
@@ -155,7 +160,9 @@ const Trends: React.FC = () => {
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => formatAxisAmount(v, amountUnit) },
+        axisLabel: {
+          formatter: (v: number) => formatAxisAmount(v, amountUnit, settings.currencySymbol),
+        },
       },
       dataZoom: manyPoints
         ? [
@@ -181,7 +188,7 @@ const Trends: React.FC = () => {
         itemStyle: { color: s.color },
       })),
     };
-  }, [categorySeries]);
+  }, [categorySeries, settings]);
 
   // 数据不足说明
   const dataInsufficient = rangeSnapshots.length < 2;
