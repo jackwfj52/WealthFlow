@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Card, Col, Row, Statistic, Table, Segmented, Spin } from 'antd';
+import { Card, Col, Row, Statistic, Table, Segmented, Spin, DatePicker, Space, Button } from 'antd';
 import {
   WalletOutlined,
   AppstoreOutlined,
   CalendarOutlined,
+  LeftOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
@@ -34,20 +36,46 @@ const Dashboard: React.FC = () => {
   const [trendDays, setTrendDays] = useState(30);
   const [aggregation, setAggregation] = useState<Aggregation>('day');
 
+  // 查询日期：默认最新快照日期，点击可切换，左右箭头快速切换
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
   const sortedSnapshots = useMemo(
     () => [...snapshots].sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate)),
     [snapshots]
   );
 
   const latestSnapshot = sortedSnapshots[0];
-  const categoryPieData = useMemo(() => getCategoryPercentages(latestSnapshot?.items ?? []), [latestSnapshot]);
+
+  // 有快照的日期列表（升序）
+  const sortedDates = useMemo(
+    () => [...new Set(snapshots.map((s) => s.snapshotDate))].sort(),
+    [snapshots]
+  );
+
+  // 当前查询的快照：所选日期存在则用它，否则回退到最新快照
+  const selectedSnapshot = useMemo(() => {
+    if (selectedDate && snapshots.some((s) => s.snapshotDate === selectedDate)) {
+      return snapshots.find((s) => s.snapshotDate === selectedDate) ?? null;
+    }
+    return latestSnapshot ?? null;
+  }, [selectedDate, snapshots, latestSnapshot]);
+
+  const currentIndex = useMemo(() => {
+    if (!selectedSnapshot) return -1;
+    return sortedDates.indexOf(selectedSnapshot.snapshotDate);
+  }, [selectedSnapshot, sortedDates]);
+
+  const categoryPieData = useMemo(
+    () => getCategoryPercentages(selectedSnapshot?.items ?? []),
+    [selectedSnapshot]
+  );
 
   const trendRaw = useMemo(() => {
     if (snapshots.length === 0) return [];
-    const end = latestSnapshot.snapshotDate;
+    const end = selectedSnapshot?.snapshotDate ?? '';
     const start = dayjs(end).subtract(trendDays - 1, 'day').format('YYYY-MM-DD');
     return getTrendData(snapshots, start, end);
-  }, [snapshots, trendDays, latestSnapshot]);
+  }, [snapshots, trendDays, selectedSnapshot]);
 
   const trendData = useMemo(
     () => aggregateTrendData(trendRaw, aggregation),
@@ -178,7 +206,7 @@ const Dashboard: React.FC = () => {
               title="总资产"
               valueRender={() => (
                 <AmountText
-                  amount={latestSnapshot?.totalAmount ?? '0'}
+                  amount={selectedSnapshot?.totalAmount ?? '0'}
                   style={{ fontSize: 24, fontWeight: 600, color: '#1890ff' }}
                 />
               )}
@@ -197,11 +225,40 @@ const Dashboard: React.FC = () => {
         </Col>
         <Col xs={24} sm={8}>
           <Card>
-            <Statistic
-              title="最近快照日期"
-              value={latestSnapshot?.snapshotDate ?? '-'}
-              prefix={<CalendarOutlined />}
-            />
+            <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 14, marginBottom: 12 }}>
+              <CalendarOutlined style={{ marginRight: 8 }} />
+              快照日期
+            </div>
+            <Space>
+              <Button
+                type="text"
+                icon={<LeftOutlined />}
+                disabled={currentIndex <= 0}
+                onClick={() => setSelectedDate(sortedDates[currentIndex - 1])}
+                aria-label="上一个快照日期"
+              />
+              <DatePicker
+                value={selectedSnapshot ? dayjs(selectedSnapshot.snapshotDate) : undefined}
+                allowClear={false}
+                bordered={false}
+                style={{ width: 132 }}
+                onChange={(d) => {
+                  if (d) setSelectedDate(d.format('YYYY-MM-DD'));
+                }}
+                disabledDate={(d) =>
+                  !d ||
+                  d.isAfter(dayjs(), 'day') ||
+                  !sortedDates.includes(d.format('YYYY-MM-DD'))
+                }
+              />
+              <Button
+                type="text"
+                icon={<RightOutlined />}
+                disabled={currentIndex < 0 || currentIndex >= sortedDates.length - 1}
+                onClick={() => setSelectedDate(sortedDates[currentIndex + 1])}
+                aria-label="下一个快照日期"
+              />
+            </Space>
           </Card>
         </Col>
       </Row>
