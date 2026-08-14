@@ -19,7 +19,7 @@ import {
   aggregateTrendData,
   type Aggregation,
 } from '../../utils/snapshot';
-import { formatAmount } from '../../utils/amount';
+import { formatAmount, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 
 const TREND_RANGES: { label: string; days: number }[] = [
   { label: '近7天', days: 7 },
@@ -87,6 +87,9 @@ const Dashboard: React.FC = () => {
   // --- trend line option ---
   const trendOption = useMemo(() => {
     if (trendData.length === 0) return {};
+    const amountUnit = pickAmountUnit(
+      Math.max(...trendData.map((d) => parseFloat(d.totalAmount)), 0)
+    );
     return {
       tooltip: {
         trigger: 'axis' as const,
@@ -103,7 +106,7 @@ const Dashboard: React.FC = () => {
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => `¥${(v / 10000).toFixed(0)}万` },
+        axisLabel: { formatter: (v: number) => formatAxisAmount(v, amountUnit) },
       },
       series: [
         {

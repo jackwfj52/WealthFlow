@@ -55,3 +55,42 @@ export function isValidAmount(value: string): boolean {
   if (!value || !value.trim()) return false;
   return /^\d+(\.\d{1,2})?$/.test(value.trim()) && parseFloat(value) > 0;
 }
+
+// ---------- 坐标轴单位自适应 ----------
+
+export interface AmountUnit {
+  unit: string;
+  value: number;
+}
+
+/** 中文金额单位阶梯（从大到小），按数据最大值取首个可用的单位 */
+const AMOUNT_UNITS: AmountUnit[] = [
+  { unit: '亿', value: 1e8 },
+  { unit: '千万', value: 1e7 },
+  { unit: '百万', value: 1e6 },
+  { unit: '十万', value: 1e5 },
+  { unit: '万', value: 1e4 },
+  { unit: '千', value: 1e3 },
+  { unit: '百', value: 1e2 },
+];
+
+/**
+ * 根据最大值选择坐标轴单位。
+ * 不足百时返回 null（直接显示原数值）。
+ */
+export function pickAmountUnit(maxValue: number): AmountUnit | null {
+  if (!isFinite(maxValue)) return null;
+  for (const u of AMOUNT_UNITS) {
+    if (maxValue >= u.value) return u;
+  }
+  return null;
+}
+
+/** 坐标轴金额显示：按单位缩放，保留最多两位小数并去除尾部多余的 0 */
+export function formatAxisAmount(value: number, unit: AmountUnit | null): string {
+  if (value === 0) return '¥0';
+  if (!unit) return `¥${Math.round(value)}`;
+  const scaled = value / unit.value;
+  const text = scaled.toFixed(2).replace(/\.?0+$/, '');
+  return `¥${text}${unit.unit}`;
+}

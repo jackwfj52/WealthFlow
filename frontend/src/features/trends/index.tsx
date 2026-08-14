@@ -26,7 +26,7 @@ import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import { useSnapshots, useCategories } from '../../app/storage';
 import { getCategoryTrendData, aggregateTrendData, type Aggregation } from '../../utils/snapshot';
-import { formatAmount } from '../../utils/amount';
+import { formatAmount, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 import { isValidDateRange } from '../../utils/date';
 
 dayjs.extend(customParseFormat);
@@ -113,6 +113,15 @@ const Trends: React.FC = () => {
     // x 轴标签：取第一个系列的日期
     const xLabels = categorySeries[0]?.data.map((d) => d.date) ?? [];
 
+    // y 轴单位按数据最大值自适应（百/千/万/十万...）
+    let maxValue = 0;
+    for (const s of categorySeries) {
+      for (const d of s.data) {
+        maxValue = Math.max(maxValue, d.value);
+      }
+    }
+    const amountUnit = pickAmountUnit(maxValue);
+
     return {
       tooltip: {
         trigger: 'axis' as const,
@@ -135,7 +144,7 @@ const Trends: React.FC = () => {
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { formatter: (v: number) => `¥${(v / 10000).toFixed(0)}万` },
+        axisLabel: { formatter: (v: number) => formatAxisAmount(v, amountUnit) },
       },
       series: categorySeries.map((s) => ({
         name: s.name,
