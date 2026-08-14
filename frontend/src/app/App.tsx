@@ -8,8 +8,9 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AppProvider } from './storage';
+import { AppProvider, useApp } from './storage';
 import AppRouter from './router';
+import ErrorState from '../components/ErrorState';
 
 const { Sider, Content } = Layout;
 
@@ -24,6 +25,7 @@ const menuItems = [
 const AppShell: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { error, reload } = useApp();
 
   const selectedKey = menuItems
     .map((m) => m.key)
@@ -62,7 +64,7 @@ const AppShell: React.FC = () => {
       </Sider>
       <Layout>
         <Content style={{ padding: 24, background: '#f5f5f5', minHeight: '100vh' }}>
-          <AppRouter />
+          {error ? <ErrorState message={error} onRetry={reload} /> : <AppRouter />}
         </Content>
       </Layout>
     </Layout>

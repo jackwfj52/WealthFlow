@@ -11,8 +11,7 @@
  * 7. 删除快照需要二次确认
  * 8. 总资产、分类占比和趋势数据必须根据快照实时计算
  *
- * 后续对接 Spring Boot 时：替换为本文件内的函数实现为 fetch/axios 调用即可，
- * 组件层无需任何修改。
+ * 与真实 API 实现共享 SnapshotService 接口。
  */
 import type { AssetSnapshot, SnapshotItem } from '../types/domain';
 import { generateId } from './mockData';
@@ -22,6 +21,7 @@ import {
   isValidDateFormat,
   isValidDateRange,
 } from '../utils/date';
+import type { SnapshotService } from './types';
 
 const STORAGE_KEY = 'wealthflow_snapshots';
 
@@ -74,14 +74,14 @@ function validateItems(items: unknown): { valid: SnapshotItem[]; error?: string 
   return { valid };
 }
 
-export const snapshotService = {
+export const snapshotService: SnapshotService = {
   /** 获取所有快照 */
-  getAll(): AssetSnapshot[] {
+  async getAll(): Promise<AssetSnapshot[]> {
     return read();
   },
 
   /** 按 ID 获取 */
-  getById(id: string): AssetSnapshot | undefined {
+  async getById(id: string): Promise<AssetSnapshot | undefined> {
     if (!id) return undefined;
     return read().find((s) => s.id === id);
   },
@@ -90,7 +90,7 @@ export const snapshotService = {
    * 按日期获取快照。
    * 日期非法时返回 undefined（不抛异常，适合查询场景）。
    */
-  getByDate(date: string): AssetSnapshot | undefined {
+  async getByDate(date: string): Promise<AssetSnapshot | undefined> {
     if (!isValidDateFormat(date)) return undefined;
     return read().find((s) => s.snapshotDate === date);
   },
@@ -99,7 +99,7 @@ export const snapshotService = {
    * 检查指定日期是否已有快照。
    * 日期非法时返回 false。
    */
-  existsByDate(date: string): boolean {
+  async existsByDate(date: string): Promise<boolean> {
     if (!isValidDateFormat(date)) return false;
     return read().some((s) => s.snapshotDate === date);
   },
@@ -110,7 +110,7 @@ export const snapshotService = {
    * 日期必须符合 YYYY-MM-DD 真实日期且不能晚于今天。
    * 若日期已存在快照则抛出错误（调用方应先 checked existsByDate 并引导编辑）。
    */
-  create(snapshotDate: string, items: SnapshotItem[]): AssetSnapshot {
+  async create(snapshotDate: string, items: SnapshotItem[]): Promise<AssetSnapshot> {
     if (!isValidDateOnly(snapshotDate)) {
       if (typeof snapshotDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
         throw new Error('日期格式无效，请输入真实日期（YYYY-MM-DD），例如 2026-07-16');
@@ -144,7 +144,7 @@ export const snapshotService = {
    *
    * 只能修改指定日期的数据，不会影响其他日期。
    */
-  update(id: string, items: SnapshotItem[]): AssetSnapshot | undefined {
+  async update(id: string, items: SnapshotItem[]): Promise<AssetSnapshot | undefined> {
     if (!id) return undefined;
 
     const snapshots = read();
@@ -164,7 +164,7 @@ export const snapshotService = {
   },
 
   /** 删除快照 */
-  delete(id: string): boolean {
+  async delete(id: string): Promise<boolean> {
     if (!id) return false;
     const snapshots = read();
     const filtered = snapshots.filter((s) => s.id !== id);
@@ -177,7 +177,7 @@ export const snapshotService = {
    * 按日期范围筛选。
    * 两个日期都必须合法，且开始 ≤ 结束，否则返回空数组。
    */
-  filterByDateRange(startDate: string, endDate: string): AssetSnapshot[] {
+  async filterByDateRange(startDate: string, endDate: string): Promise<AssetSnapshot[]> {
     const range = isValidDateRange(startDate, endDate);
     if (!range.valid) return [];
 
@@ -187,7 +187,7 @@ export const snapshotService = {
   },
 
   /** 批量重置 */
-  reset(snapshots: AssetSnapshot[]): void {
+  async reset(snapshots: AssetSnapshot[]): Promise<void> {
     if (!Array.isArray(snapshots)) return;
     write(snapshots);
   },

@@ -26,6 +26,7 @@ import {
   Typography,
   Alert,
   Modal,
+  Spin,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -35,7 +36,7 @@ import PageHeader from '../../components/PageHeader';
 import AmountText from '../../components/AmountText';
 import EmptyState from '../../components/EmptyState';
 import { useSnapshots, useCategories } from '../../app/storage';
-import { snapshotService } from '../../services/mockSnapshots';
+import { snapshotService } from '../../services';
 import { isValidAmount } from '../../utils/amount';
 import { isValidDateOnly, isValidDateRange } from '../../utils/date';
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
@@ -43,7 +44,7 @@ import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
 dayjs.extend(customParseFormat);
 
 const Snapshots: React.FC = () => {
-  const { snapshots, refresh: refreshSnapshots } = useSnapshots();
+  const { snapshots, loading, refresh: refreshSnapshots } = useSnapshots();
   const { categories } = useCategories();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -99,8 +100,8 @@ const Snapshots: React.FC = () => {
 
   // --- 删除快照 ---
   const handleDelete = useCallback(
-    (id: string) => {
-      snapshotService.delete(id);
+    async (id: string) => {
+      await snapshotService.delete(id);
       message.success('快照已删除');
       refreshSnapshots();
     },
@@ -150,14 +151,15 @@ const Snapshots: React.FC = () => {
       }
 
       if (drawerMode === 'add') {
-        if (snapshotService.existsByDate(dateStr)) {
+        const exists = await snapshotService.existsByDate(dateStr);
+        if (exists) {
+          const existing = await snapshotService.getByDate(dateStr);
           Modal.confirm({
             title: '该日期已有快照',
             content: `日期 ${dateStr} 已有快照数据。新增每日快照不会覆盖历史数据。是否跳转到编辑当天快照？`,
             okText: '去编辑',
             cancelText: '取消',
             onOk: () => {
-              const existing = snapshotService.getByDate(dateStr);
               if (existing) {
                 setDrawerMode('edit');
                 setEditingSnapshot(existing);
@@ -173,11 +175,11 @@ const Snapshots: React.FC = () => {
           });
           return;
         }
-        snapshotService.create(dateStr, items);
+        await snapshotService.create(dateStr, items);
         message.success('快照已新增');
       } else {
         if (!editingSnapshot) return;
-        snapshotService.update(editingSnapshot.id, items);
+        await snapshotService.update(editingSnapshot.id, items);
         message.success('快照已更新');
       }
 
@@ -264,6 +266,10 @@ const Snapshots: React.FC = () => {
   ];
 
   const categoryOptions = categories.map((c) => ({ label: c.name, value: c.id }));
+
+  if (loading) {
+    return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
+  }
 
   return (
     <>

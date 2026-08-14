@@ -17,18 +17,19 @@ import {
   Space,
   Popconfirm,
   message,
+  Spin,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import { useCategories, useSnapshots } from '../../app/storage';
-import { categoryService } from '../../services/mockCategories';
+import { categoryService } from '../../services';
 import type { AssetCategory } from '../../types/domain';
 
 const Categories: React.FC = () => {
   const { categories, refresh: refreshCategories } = useCategories();
-  const { snapshots, refresh: refreshSnapshots } = useSnapshots();
+  const { snapshots, loading, refresh: refreshSnapshots } = useSnapshots();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
@@ -77,11 +78,11 @@ const Categories: React.FC = () => {
       }
 
       if (modalMode === 'add') {
-        categoryService.create(name);
+        await categoryService.create(name);
         message.success('分类已新增');
       } else {
         if (editingCategory) {
-          categoryService.update(editingCategory.id, name);
+          await categoryService.update(editingCategory.id, name);
           message.success('分类已更新');
           // 重命名可能影响了快照中的 categoryName，同步刷新
           refreshSnapshots();
@@ -100,13 +101,13 @@ const Categories: React.FC = () => {
   }, [form, modalMode, editingCategory, refreshCategories, refreshSnapshots]);
 
   const handleDelete = useCallback(
-    (id: string, name: string) => {
+    async (id: string, name: string) => {
       const usage = categoryUsageCount.get(id) ?? 0;
       if (usage > 0) {
         message.warning(`分类"${name}"已被 ${usage} 条快照使用，无法删除`);
         return;
       }
-      categoryService.delete(id);
+      await categoryService.delete(id);
       message.success('分类已删除');
       refreshCategories();
     },
@@ -160,6 +161,10 @@ const Categories: React.FC = () => {
       },
     },
   ];
+
+  if (loading) {
+    return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
+  }
 
   return (
     <>

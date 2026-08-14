@@ -1,13 +1,12 @@
 /**
  * 分类 Mock Service
  *
- * 使用 localStorage 持久化分类数据。
- * 后续对接 Spring Boot 时：替换为本文件内的函数实现为 fetch/axios 调用即可，
- * 组件层无需任何修改。
+ * 使用 localStorage 持久化分类数据，与真实 API 实现共享 CategoryService 接口。
  */
 import type { AssetCategory, AssetSnapshot } from '../types/domain';
 import { generateId } from './mockData';
 import { today } from '../utils/date';
+import type { CategoryService } from './types';
 
 const STORAGE_KEY = 'wealthflow_categories';
 const SNAPSHOT_KEY = 'wealthflow_snapshots';
@@ -64,14 +63,14 @@ function validateName(name: unknown, categories: AssetCategory[], excludeId?: st
   return trimmed;
 }
 
-export const categoryService = {
+export const categoryService: CategoryService = {
   /** 获取所有分类 */
-  getAll(): AssetCategory[] {
+  async getAll(): Promise<AssetCategory[]> {
     return read();
   },
 
   /** 按 ID 获取 */
-  getById(id: string): AssetCategory | undefined {
+  async getById(id: string): Promise<AssetCategory | undefined> {
     if (!id) return undefined;
     return read().find((c) => c.id === id);
   },
@@ -80,7 +79,7 @@ export const categoryService = {
    * 新增分类
    * @throws 名称重复、空名称、纯空格时抛出错误
    */
-  create(name: string): AssetCategory {
+  async create(name: string): Promise<AssetCategory> {
     const categories = read();
     const validName = validateName(name, categories);
     const category: AssetCategory = {
@@ -101,7 +100,7 @@ export const categoryService = {
    *
    * @throws 名称重复、空名称、纯空格时抛出错误
    */
-  update(id: string, name: string): AssetCategory | undefined {
+  async update(id: string, name: string): Promise<AssetCategory | undefined> {
     if (!id) return undefined;
     const categories = read();
     const idx = categories.findIndex((c) => c.id === id);
@@ -134,7 +133,7 @@ export const categoryService = {
   },
 
   /** 删除分类 */
-  delete(id: string): boolean {
+  async delete(id: string): Promise<boolean> {
     if (!id) return false;
     const categories = read();
     const filtered = categories.filter((c) => c.id !== id);
@@ -144,7 +143,7 @@ export const categoryService = {
   },
 
   /** 批量重置为初始数据 */
-  reset(categories: AssetCategory[]): void {
+  async reset(categories: AssetCategory[]): Promise<void> {
     if (!Array.isArray(categories)) return;
     write(categories);
   },
