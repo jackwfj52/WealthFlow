@@ -15,6 +15,7 @@ import AmountText from '../../components/AmountText';
 import EmptyState from '../../components/EmptyState';
 import { useCategories } from '../../app/storage';
 import { useSnapshots } from '../../app/storage';
+import { useSettings } from '../../app/settings';
 import {
   getCategoryPercentages,
   getTrendData,
@@ -33,7 +34,8 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { categories } = useCategories();
   const { snapshots, loading } = useSnapshots();
-  const [trendDays, setTrendDays] = useState(30);
+  const { settings } = useSettings();
+  const [trendDays, setTrendDays] = useState(settings.defaultTrendDays);
   const [aggregation, setAggregation] = useState<Aggregation>('day');
 
   // 查询日期：默认最新快照日期，点击可切换，左右箭头快速切换

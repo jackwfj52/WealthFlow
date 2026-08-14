@@ -25,6 +25,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import { useSnapshots, useCategories } from '../../app/storage';
+import { useSettings } from '../../app/settings';
 import { getCategoryTrendData, aggregateTrendData, type Aggregation } from '../../utils/snapshot';
 import { formatAmount, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 import { isValidDateRange } from '../../utils/date';
@@ -47,10 +48,11 @@ const COLORS = [
 const Trends: React.FC = () => {
   const { snapshots, loading } = useSnapshots();
   const { categories } = useCategories();
+  const { settings } = useSettings();
 
-  const [rangePreset, setRangePreset] = useState<number>(30);
+  const [rangePreset, setRangePreset] = useState<number>(settings.defaultTrendDays);
   const [customRange, setCustomRange] = useState<[string, string] | null>(null);
-  const [aggregation, setAggregation] = useState<Aggregation>('day');
+  const [aggregation, setAggregation] = useState<Aggregation>(settings.defaultAggregation);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   // 确定实际起止日期
