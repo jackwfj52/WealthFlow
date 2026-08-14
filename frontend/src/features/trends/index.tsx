@@ -235,7 +235,7 @@ const Trends: React.FC = () => {
       {/* 趋势图 */}
       <Card title="分类资产趋势">
         {categorySeries.length > 0 ? (
-          <ReactECharts option={chartOption} style={{ height: 420 }} />
+          <ReactECharts notMerge option={chartOption} style={{ height: 420 }} />
         ) : (
           <Empty description="所选分类无数据" />
         )}

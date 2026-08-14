@@ -208,7 +208,7 @@ const Dashboard: React.FC = () => {
         <Col xs={24} lg={12}>
           <Card title="资产分类占比">
             {categoryPieData.length > 0 ? (
-              <ReactECharts option={pieOption} style={{ height: 360 }} />
+              <ReactECharts notMerge option={pieOption} style={{ height: 360 }} />
             ) : (
               <EmptyState description="暂无分类数据" />
             )}
@@ -249,7 +249,7 @@ const Dashboard: React.FC = () => {
           />
         </div>
         {trendData.length > 0 ? (
-          <ReactECharts option={trendOption} style={{ height: 320 }} />
+          <ReactECharts notMerge option={trendOption} style={{ height: 320 }} />
         ) : (
           <EmptyState description="所选时间范围内暂无快照数据" />
         )}
