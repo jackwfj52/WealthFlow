@@ -66,17 +66,12 @@ export interface AmountUnit {
 /** 中文金额单位阶梯（从大到小），按数据最大值取首个可用的单位 */
 const AMOUNT_UNITS: AmountUnit[] = [
   { unit: '亿', value: 1e8 },
-  { unit: '千万', value: 1e7 },
-  { unit: '百万', value: 1e6 },
-  { unit: '十万', value: 1e5 },
   { unit: '万', value: 1e4 },
-  { unit: '千', value: 1e3 },
-  { unit: '百', value: 1e2 },
 ];
 
 /**
  * 根据最大值选择坐标轴单位。
- * 不足百时返回 null（直接显示原数值）。
+ * 不足万时返回 null（直接显示原数值）。
  */
 export function pickAmountUnit(maxValue: number): AmountUnit | null {
   if (!isFinite(maxValue)) return null;
