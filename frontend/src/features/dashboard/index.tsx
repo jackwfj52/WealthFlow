@@ -199,12 +199,14 @@ const Dashboard: React.FC = () => {
       title: '金额',
       dataIndex: 'amount',
       key: 'amount',
+      width: 140,
       render: (v: string) => <AmountText amount={v} />,
     },
     {
       title: '占比',
       dataIndex: 'percent',
       key: 'percent',
+      width: 80,
       render: (v: number) => `${v}%`,
     },
   ];
@@ -319,6 +321,7 @@ const Dashboard: React.FC = () => {
               columns={categoryColumns}
               pagination={false}
               size="small"
+              tableLayout="fixed"
             />
           </Card>
         </Col>
