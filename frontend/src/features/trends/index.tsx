@@ -35,6 +35,8 @@ const RANGE_PRESETS: { label: string; days: number }[] = [
   { label: '近7天', days: 7 },
   { label: '近30天', days: 30 },
   { label: '近90天', days: 90 },
+  { label: '近一年', days: 365 },
+  { label: '近十年', days: 3650 },
 ];
 
 const COLORS = [
