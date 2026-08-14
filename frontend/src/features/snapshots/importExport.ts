@@ -22,7 +22,7 @@
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
 import { isValidDateOnly } from '../../utils/date';
 import { isValidAmount } from '../../utils/amount';
-import type { CategoryService, SnapshotService } from '../../services/types';
+import type { CategoryService, SnapshotService, SystemService } from '../../services/types';
 
 export interface ImportedItem {
   categoryName: string;
@@ -235,6 +235,185 @@ export async function runImport(
 
     await snapshotService.create(entry.snapshotDate, items);
     report.created += 1;
+  }
+
+  return report;
+}
+
+/* ---------------------------------------------------------------------------
+ * 全量备份（分类 + 快照）
+ * ------------------------------------------------------------------------- */
+
+export interface BackupCategory {
+  name: string;
+}
+
+export interface BackupFile {
+  type: string;
+  version: number;
+  exportedAt: string;
+  categories: BackupCategory[];
+  snapshots: ImportedSnapshot[];
+}
+
+export type BackupParseResult =
+  | { ok: true; backup: BackupFile; report: ParseReport }
+  | { ok: false; error: string };
+
+export type RestoreMode = 'merge' | 'overwrite';
+
+export interface BackupRestoreReport {
+  createdSnapshots: number;
+  createdCategories: number;
+  skipped: SkippedEntry[];
+}
+
+/** 生成全量备份 JSON（分类 + 快照），快照按日期升序 */
+export function buildBackupJson(
+  categories: { name: string }[],
+  snapshots: AssetSnapshot[]
+): string {
+  const backup: BackupFile = {
+    type: 'wealthflow-backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    categories: categories.map((c) => ({ name: c.name })),
+    snapshots: [...snapshots]
+      .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))
+      .map((s) => ({
+        snapshotDate: s.snapshotDate,
+        items: s.items.map((item) => ({
+          categoryName: item.categoryName,
+          amount: item.amount,
+        })),
+      })),
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+/** 解析备份文件：结构问题直接报错，快照条目级问题跳过并记录原因 */
+export function parseBackupJson(text: string): BackupParseResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'JSON 解析失败，请确认文件是合法的 JSON 格式' };
+  }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, error: '备份文件结构无效：顶层应为对象' };
+  }
+  const e = raw as Record<string, unknown>;
+
+  if (typeof e.type === 'string' && e.type !== 'wealthflow-backup') {
+    return { ok: false, error: '不是有效的 WealthFlow 备份文件' };
+  }
+  if (e.categories !== undefined && !Array.isArray(e.categories)) {
+    return { ok: false, error: '备份文件 categories 字段应为数组' };
+  }
+  if (!Array.isArray(e.snapshots)) {
+    return { ok: false, error: '备份文件 snapshots 字段应为数组' };
+  }
+
+  const categories: BackupCategory[] = [];
+  for (const entry of e.categories ?? []) {
+    const name =
+      typeof entry === 'string'
+        ? entry.trim()
+        : entry && typeof entry === 'object'
+          ? String((entry as Record<string, unknown>).name ?? '').trim()
+          : '';
+    if (name && !categories.some((c) => c.name === name)) {
+      categories.push({ name });
+    }
+  }
+
+  let report: ParseReport;
+  if (e.snapshots.length === 0) {
+    report = { valid: [], skipped: [] };
+  } else {
+    const parsed = parseImportJson(JSON.stringify(e.snapshots));
+    if (!parsed.ok) {
+      return { ok: false, error: `快照数据无效：${parsed.error}` };
+    }
+    report = parsed.report;
+  }
+
+  const backup: BackupFile = {
+    type: typeof e.type === 'string' ? e.type : 'wealthflow-backup',
+    version: typeof e.version === 'number' ? e.version : 1,
+    exportedAt: typeof e.exportedAt === 'string' ? e.exportedAt : '',
+    categories,
+    snapshots: report.valid,
+  };
+
+  return { ok: true, backup, report };
+}
+
+/**
+ * 执行备份恢复。
+ * - merge：保留现有数据，已存在的快照日期跳过
+ * - overwrite：先清空全部数据，再导入备份
+ * 分类按名称匹配，不存在则自动创建。
+ */
+export async function runBackupRestore(
+  backup: BackupFile,
+  mode: RestoreMode,
+  categoryService: CategoryService,
+  snapshotService: SnapshotService,
+  systemService: SystemService
+): Promise<BackupRestoreReport> {
+  if (mode === 'overwrite') {
+    await systemService.clearAll();
+  }
+
+  const report: BackupRestoreReport = {
+    createdSnapshots: 0,
+    createdCategories: 0,
+    skipped: [],
+  };
+
+  const categories = await categoryService.getAll();
+  const nameToId = new Map(categories.map((c) => [c.name, c.id]));
+
+  for (const cat of backup.categories) {
+    if (!nameToId.has(cat.name)) {
+      const created = await categoryService.create(cat.name);
+      nameToId.set(cat.name, created.id);
+      report.createdCategories += 1;
+    }
+  }
+
+  for (const entry of backup.snapshots) {
+    if (await snapshotService.existsByDate(entry.snapshotDate)) {
+      report.skipped.push({
+        date: entry.snapshotDate,
+        reason:
+          mode === 'merge'
+            ? '数据库中已存在该日期的快照（合并模式不覆盖）'
+            : '数据库中已存在该日期的快照',
+      });
+      continue;
+    }
+
+    const items: SnapshotItem[] = [];
+    for (const item of entry.items) {
+      let categoryId = nameToId.get(item.categoryName);
+      if (!categoryId) {
+        const created = await categoryService.create(item.categoryName);
+        categoryId = created.id;
+        nameToId.set(item.categoryName, categoryId);
+        report.createdCategories += 1;
+      }
+      items.push({
+        categoryId,
+        categoryName: item.categoryName,
+        amount: item.amount,
+      });
+    }
+
+    await snapshotService.create(entry.snapshotDate, items);
+    report.createdSnapshots += 1;
   }
 
   return report;

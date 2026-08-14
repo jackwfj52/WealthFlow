@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Card,
   Button,
@@ -13,18 +13,33 @@ import {
   Descriptions,
   Spin,
   Modal,
+  Radio,
+  Alert,
 } from 'antd';
 import {
   DeleteOutlined,
   UndoOutlined,
   ReloadOutlined,
+  DownloadOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import PageHeader from '../../components/PageHeader';
 import { useCategories, useSnapshots } from '../../app/storage';
 import { useSettings, type ThemeMode } from '../../app/settings';
 import { SEED_CATEGORIES, SEED_SNAPSHOTS } from '../../services/mockData';
 import { USE_MOCK, categoryService, snapshotService, systemService } from '../../services';
 import type { SystemInfo } from '../../services/types';
+import {
+  buildBackupJson,
+  parseBackupJson,
+  runBackupRestore,
+  downloadTextFile,
+  type BackupFile,
+  type ImportedSnapshot,
+  type SkippedEntry,
+  type RestoreMode,
+} from '../snapshots/importExport';
 
 const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -68,6 +83,85 @@ const Settings: React.FC = () => {
   const latestDate = snapshots.length
     ? snapshots.map((s) => s.snapshotDate).sort().at(-1)
     : null;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [restorePending, setRestorePending] = useState<{
+    backup: BackupFile;
+    valid: ImportedSnapshot[];
+    skipped: SkippedEntry[];
+  } | null>(null);
+  const [restoreMode, setRestoreMode] = useState<RestoreMode>('merge');
+  const [restoring, setRestoring] = useState(false);
+
+  const handleExportAll = useCallback(async () => {
+    const [categories, snapshots] = await Promise.all([
+      categoryService.getAll(),
+      snapshotService.getAll(),
+    ]);
+    const json = buildBackupJson(categories, snapshots);
+    downloadTextFile(
+      `wealthflow-backup-${dayjs().format('YYYY-MM-DD')}.json`,
+      json
+    );
+    message.success(
+      `已导出 ${categories.length} 个分类、${snapshots.length} 条快照`
+    );
+  }, []);
+
+  const handleBackupFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const text = await file.text();
+      const result = parseBackupJson(text);
+      if (!result.ok) {
+        message.error(result.error);
+        return;
+      }
+      setRestoreMode('merge');
+      setRestorePending({
+        backup: result.backup,
+        valid: result.report.valid,
+        skipped: result.report.skipped,
+      });
+    },
+    []
+  );
+
+  const handleConfirmRestore = useCallback(async () => {
+    if (!restorePending) return;
+    setRestoring(true);
+    try {
+      const report = await runBackupRestore(
+        restorePending.backup,
+        restoreMode,
+        categoryService,
+        snapshotService,
+        systemService
+      );
+      refreshCategories();
+      refreshSnapshots();
+      void refreshSysInfo();
+      setRestorePending(null);
+      message.success(
+        `恢复完成：新增 ${report.createdSnapshots} 条快照、${report.createdCategories} 个分类` +
+          (report.skipped.length
+            ? `，跳过 ${report.skipped.length} 条已存在日期的快照`
+            : '')
+      );
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '恢复失败');
+    } finally {
+      setRestoring(false);
+    }
+  }, [
+    restorePending,
+    restoreMode,
+    refreshCategories,
+    refreshSnapshots,
+    refreshSysInfo,
+  ]);
 
   const handleClearAll = useCallback(async () => {
     await categoryService.reset([]);
@@ -214,6 +308,33 @@ const Settings: React.FC = () => {
         </Button>
       </Card>
 
+      <Card title="数据备份与恢复" style={{ maxWidth: 600, marginBottom: 16 }}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          导出全量数据（分类与快照）为 JSON 备份文件；导入时可选合并或覆盖模式。
+        </Typography.Paragraph>
+        <Space>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => void handleExportAll()}
+          >
+            导出全部数据
+          </Button>
+          <Button
+            icon={<UploadOutlined />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            导入备份
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => void handleBackupFileChange(e)}
+          />
+        </Space>
+      </Card>
+
       <Card
         title="数据库信息"
         style={{ maxWidth: 600 }}
@@ -254,6 +375,50 @@ const Settings: React.FC = () => {
           <Typography.Text type="secondary">暂无数据库信息</Typography.Text>
         )}
       </Card>
+
+      <Modal
+        title="恢复备份"
+        open={restorePending !== null}
+        onOk={() => void handleConfirmRestore()}
+        onCancel={() => setRestorePending(null)}
+        okText="开始恢复"
+        cancelText="取消"
+        confirmLoading={restoring}
+      >
+        {restorePending && (
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>
+              备份包含 {restorePending.backup.categories.length} 个分类、
+              {restorePending.valid.length} 条有效快照
+              {restorePending.skipped.length > 0
+                ? `，另有 ${restorePending.skipped.length} 条快照因格式问题被跳过`
+                : ''}。
+            </Typography.Paragraph>
+            <Radio.Group
+              value={restoreMode}
+              onChange={(e) =>
+                setRestoreMode(e.target.value as RestoreMode)
+              }
+            >
+              <Space direction="vertical">
+                <Radio value="merge">
+                  合并：保留现有数据，已存在的快照日期跳过
+                </Radio>
+                <Radio value="overwrite">
+                  覆盖：清空现有全部数据后导入备份
+                </Radio>
+              </Space>
+            </Radio.Group>
+            {restoreMode === 'overwrite' && (
+              <Alert
+                type="warning"
+                showIcon
+                message="覆盖模式将删除当前所有分类与快照数据，且不可恢复"
+              />
+            )}
+          </Space>
+        )}
+      </Modal>
     </>
   );
 };
