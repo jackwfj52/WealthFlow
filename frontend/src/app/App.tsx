@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, ConfigProvider, theme as antdTheme } from 'antd';
 import {
   DashboardOutlined,
   CameraOutlined,
@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './storage';
+import { SettingsProvider, useSettings } from './settings';
 import AppRouter from './router';
 import ErrorState from '../components/ErrorState';
 
@@ -26,6 +27,7 @@ const AppShell: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { error, reload } = useApp();
+  const { token } = antdTheme.useToken();
 
   const selectedKey = menuItems
     .map((m) => m.key)
@@ -63,7 +65,7 @@ const AppShell: React.FC = () => {
         />
       </Sider>
       <Layout>
-        <Content style={{ padding: 24, background: '#f5f5f5', minHeight: '100vh' }}>
+        <Content style={{ padding: 24, background: token.colorBgLayout, minHeight: '100vh' }}>
           {error ? <ErrorState message={error} onRetry={reload} /> : <AppRouter />}
         </Content>
       </Layout>
@@ -71,9 +73,28 @@ const AppShell: React.FC = () => {
   );
 };
 
+/** 按设置中的明暗主题包裹 ConfigProvider */
+const ThemedApp: React.FC = () => {
+  const { settings } = useSettings();
+  return (
+    <ConfigProvider
+      theme={{
+        algorithm:
+          settings.theme === 'dark'
+            ? antdTheme.darkAlgorithm
+            : antdTheme.defaultAlgorithm,
+      }}
+    >
+      <AppShell />
+    </ConfigProvider>
+  );
+};
+
 const App: React.FC = () => (
   <AppProvider>
-    <AppShell />
+    <SettingsProvider>
+      <ThemedApp />
+    </SettingsProvider>
   </AppProvider>
 );
 
