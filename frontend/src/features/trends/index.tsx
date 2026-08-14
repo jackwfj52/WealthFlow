@@ -124,9 +124,10 @@ const Trends: React.FC = () => {
       legend: {
         type: 'scroll' as const,
         bottom: 0,
+        padding: [8, 0, 0, 0],
         data: categorySeries.map((s) => s.name),
       },
-      grid: { left: 60, right: 20, top: 20, bottom: 50 },
+      grid: { left: 60, right: 20, top: 20, bottom: 72 },
       xAxis: {
         type: 'category' as const,
         data: xLabels,
