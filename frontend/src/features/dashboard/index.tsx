@@ -69,6 +69,7 @@ const Dashboard: React.FC = () => {
 
   // 键盘左右方向键切换查询日期：点按切一天，长按由系统按键重复连续切换
   useEffect(() => {
+    if (!settings.keyboardSwitch) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       const target = e.target as HTMLElement | null;
@@ -97,7 +98,7 @@ const Dashboard: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, sortedDates]);
+  }, [currentIndex, sortedDates, settings.keyboardSwitch]);
 
   const categoryPieData = useMemo(
     () => getCategoryPercentages(selectedSnapshot?.items ?? []),

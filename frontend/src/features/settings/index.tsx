@@ -97,6 +97,22 @@ const Settings: React.FC = () => {
         </Space>
       </Card>
 
+      <Card title="键盘快捷键" style={{ maxWidth: 600, marginBottom: 16 }}>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <SettingRow label="启用键盘切换日期">
+            <Switch
+              checked={settings.keyboardSwitch}
+              onChange={(v) => updateSettings({ keyboardSwitch: v })}
+            />
+          </SettingRow>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            资产总览页：← → 切换快照日期（点按单次切换，长按连续切换）。
+            <br />
+            仅在未聚焦输入框、按钮等控件时生效，避免干扰其他操作。
+          </Typography.Paragraph>
+        </Space>
+      </Card>
+
       <Card title="数据管理" style={{ maxWidth: 600 }}>
         {USE_MOCK ? (
           <>
