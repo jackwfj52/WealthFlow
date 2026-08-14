@@ -141,7 +141,7 @@ const Trends: React.FC = () => {
       },
       legend: {
         type: 'scroll' as const,
-        bottom: 0,
+        bottom: manyPoints ? 30 : 0,
         padding: [8, 0, 0, 0],
         data: categorySeries.map((s) => s.name),
       },
@@ -160,8 +160,8 @@ const Trends: React.FC = () => {
             { type: 'inside' },
             {
               type: 'slider',
-              height: 18,
-              bottom: 32,
+              height: 24,
+              bottom: 0,
               start: zoomStart,
               end: 100,
               brushSelect: false,
