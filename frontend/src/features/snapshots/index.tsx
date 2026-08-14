@@ -27,8 +27,17 @@ import {
   Alert,
   Modal,
   Spin,
+  Upload,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  UploadOutlined,
+  DownloadOutlined,
+  InboxOutlined,
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
@@ -36,22 +45,38 @@ import PageHeader from '../../components/PageHeader';
 import AmountText from '../../components/AmountText';
 import EmptyState from '../../components/EmptyState';
 import { useSnapshots, useCategories } from '../../app/storage';
-import { snapshotService } from '../../services';
+import { snapshotService, categoryService } from '../../services';
 import { isValidAmount } from '../../utils/amount';
 import { isValidDateOnly, isValidDateRange } from '../../utils/date';
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
+import {
+  parseImportJson,
+  buildExportJson,
+  downloadTextFile,
+  runImport,
+  IMPORT_TEMPLATE,
+} from './importExport';
+import type { ParseReport, ImportRunReport, SkippedEntry } from './importExport';
 
 dayjs.extend(customParseFormat);
 
 const Snapshots: React.FC = () => {
   const { snapshots, loading, refresh: refreshSnapshots } = useSnapshots();
-  const { categories } = useCategories();
+  const { categories, refresh: refreshCategories } = useCategories();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add');
   const [editingSnapshot, setEditingSnapshot] = useState<AssetSnapshot | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+
+  // 导入导出
+  const [importOpen, setImportOpen] = useState(false);
+  const [importParsed, setImportParsed] = useState<ParseReport | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportRunReport | null>(null);
+  const [uploadKey, setUploadKey] = useState(0);
 
   // 筛选
   const [filterDateRange, setFilterDateRange] = useState<[string, string] | null>(null);
@@ -214,6 +239,78 @@ const Snapshots: React.FC = () => {
     []
   );
 
+  // --- 导入导出 ---
+  const openImport = useCallback(() => {
+    setImportOpen(true);
+    setImportParsed(null);
+    setImportError(null);
+    setImportResult(null);
+  }, []);
+
+  const closeImport = useCallback(() => {
+    setImportOpen(false);
+    setImportParsed(null);
+    setImportError(null);
+    setImportResult(null);
+  }, []);
+
+  const resetImportSelection = useCallback(() => {
+    setImportParsed(null);
+    setImportError(null);
+    setImportResult(null);
+    setUploadKey((k) => k + 1);
+  }, []);
+
+  const handleImportFile = useCallback(async (file: File) => {
+    const text = await file.text();
+    const result = parseImportJson(text);
+    setImportResult(null);
+    if (result.ok) {
+      setImportParsed(result.report);
+      setImportError(null);
+    } else {
+      setImportParsed(null);
+      setImportError(result.error);
+    }
+    return false;
+  }, []);
+
+  const handleRunImport = useCallback(async () => {
+    if (!importParsed || importParsed.valid.length === 0) return;
+    setImporting(true);
+    try {
+      const report = await runImport(importParsed.valid, categoryService, snapshotService);
+      setImportResult(report);
+      refreshSnapshots();
+      refreshCategories();
+    } catch (err) {
+      message.error(`导入中断：${err instanceof Error ? err.message : '未知错误'}`);
+    } finally {
+      setImporting(false);
+    }
+  }, [importParsed, refreshSnapshots, refreshCategories]);
+
+  const handleExport = useCallback(() => {
+    if (snapshots.length === 0) {
+      message.warning('暂无快照数据可导出');
+      return;
+    }
+    const json = buildExportJson(snapshots);
+    downloadTextFile(`wealthflow-snapshots-${dayjs().format('YYYY-MM-DD')}.json`, json);
+    message.success(`已导出 ${snapshots.length} 条快照`);
+  }, [snapshots]);
+
+  const renderSkippedList = (list: SkippedEntry[]) => (
+    <div style={{ maxHeight: 160, overflow: 'auto' }}>
+      {list.map((s, index) => (
+        <div key={index}>
+          {s.date ? `${s.date}：` : ''}
+          {s.reason}
+        </div>
+      ))}
+    </div>
+  );
+
   // --- 表格列定义 ---
   const columns: ColumnsType<AssetSnapshot> = [
     {
@@ -277,9 +374,17 @@ const Snapshots: React.FC = () => {
         title="资产快照"
         subtitle="每日资产更新按新增快照处理，不会覆盖历史数据"
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={openAddDrawer}>
-            新增快照
-          </Button>
+          <Space>
+            <Button icon={<UploadOutlined />} onClick={openImport}>
+              导入 JSON
+            </Button>
+            <Button icon={<DownloadOutlined />} onClick={handleExport}>
+              导出 JSON
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAddDrawer}>
+              新增快照
+            </Button>
+          </Space>
         }
       />
 
@@ -432,6 +537,128 @@ const Snapshots: React.FC = () => {
           </Form.List>
         </Form>
       </Drawer>
+
+      {/* 导入 JSON 弹窗 */}
+      <Modal
+        title="导入快照 JSON"
+        open={importOpen}
+        onCancel={closeImport}
+        width={640}
+        footer={
+          importResult
+            ? [
+                <Button key="close" type="primary" onClick={closeImport}>
+                  关闭
+                </Button>,
+              ]
+            : importParsed
+              ? [
+                  <Button key="back" onClick={resetImportSelection}>
+                    重新选择文件
+                  </Button>,
+                  <Button
+                    key="run"
+                    type="primary"
+                    loading={importing}
+                    disabled={importParsed.valid.length === 0}
+                    onClick={handleRunImport}
+                  >
+                    开始导入（{importParsed.valid.length} 条）
+                  </Button>,
+                ]
+              : [
+                  <Button key="cancel" onClick={closeImport}>
+                    取消
+                  </Button>,
+                ]
+        }
+      >
+        {importResult ? (
+          <>
+            <Alert
+              type="success"
+              showIcon
+              message={`导入完成：成功 ${importResult.created} 条快照${
+                importResult.createdCategories > 0
+                  ? `，自动创建分类 ${importResult.createdCategories} 个`
+                  : ''
+              }`}
+            />
+            {importResult.skipped.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginTop: 12 }}
+                message={`跳过 ${importResult.skipped.length} 条`}
+                description={renderSkippedList(importResult.skipped)}
+              />
+            )}
+          </>
+        ) : importParsed ? (
+          <>
+            <Alert
+              type="info"
+              showIcon
+              message={`解析成功：将导入 ${importParsed.valid.length} 条快照`}
+            />
+            {importParsed.skipped.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginTop: 12 }}
+                message={`${importParsed.skipped.length} 条将被跳过`}
+                description={renderSkippedList(importParsed.skipped)}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {importError && (
+              <Alert type="error" showIcon message={importError} style={{ marginBottom: 16 }} />
+            )}
+            <Upload.Dragger
+              key={uploadKey}
+              accept=".json,application/json"
+              multiple={false}
+              showUploadList={false}
+              beforeUpload={handleImportFile}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">点击或拖拽 JSON 文件到此处</p>
+              <p className="ant-upload-hint">文件格式见下方说明，可下载模板作为转换参考</p>
+            </Upload.Dragger>
+
+            <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 8 }}>
+              标准格式（导出即此格式）：
+            </Typography.Paragraph>
+            <pre
+              style={{
+                background: '#f6f6f6',
+                padding: 12,
+                borderRadius: 6,
+                fontSize: 12,
+                maxHeight: 200,
+                overflow: 'auto',
+              }}
+            >
+              {IMPORT_TEMPLATE}
+            </pre>
+            <Typography.Paragraph type="secondary">
+              规则：日期为真实日期且不晚于今天；金额为正数、最多两位小数；同一日期同一分类只能一条；
+              分类按名称自动匹配，不存在则自动创建；已存在的日期整条跳过（不覆盖历史数据）。
+            </Typography.Paragraph>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => downloadTextFile('wealthflow-import-template.json', IMPORT_TEMPLATE)}
+            >
+              下载模板文件
+            </Button>
+          </>
+        )}
+      </Modal>
     </>
   );
 };
