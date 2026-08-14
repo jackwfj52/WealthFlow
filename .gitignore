@@ -44,3 +44,4 @@ Thumbs.db
 *.log
 node_modules
 frontend/dist/
+docs/
