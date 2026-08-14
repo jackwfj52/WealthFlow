@@ -37,6 +37,7 @@ import {
   UploadOutlined,
   DownloadOutlined,
   InboxOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -440,19 +441,35 @@ const Snapshots: React.FC = () => {
         >
           重置筛选
         </Button>
-        {selectedRowKeys.length > 0 && (
-          <Popconfirm
-            title="批量删除"
-            description={`确定要删除选中的 ${selectedRowKeys.length} 条快照吗？此操作不可撤销。`}
-            onConfirm={handleBatchDelete}
-            okText="确认删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
+        <Button
+          icon={<CheckSquareOutlined />}
+          disabled={filteredSnapshots.length === 0}
+          onClick={() => setSelectedRowKeys(filteredSnapshots.map((s) => s.id))}
+        >
+          全选
+        </Button>
+        <Popconfirm
+          title="批量删除"
+          description={`确定要删除选中的 ${selectedRowKeys.length} 条快照吗？此操作不可撤销。`}
+          onConfirm={handleBatchDelete}
+          okText="确认删除"
+          cancelText="取消"
+          okButtonProps={{ danger: true }}
+          disabled={selectedRowKeys.length === 0}
+        >
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            loading={batchDeleting}
+            disabled={selectedRowKeys.length === 0}
           >
-            <Button danger icon={<DeleteOutlined />} loading={batchDeleting}>
-              批量删除（{selectedRowKeys.length}）
-            </Button>
-          </Popconfirm>
+            批量删除（{selectedRowKeys.length}）
+          </Button>
+        </Popconfirm>
+        {selectedRowKeys.length > 0 && (
+          <Button type="link" onClick={() => setSelectedRowKeys([])}>
+            取消选择
+          </Button>
         )}
       </Space>
 
