@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Card,
   Button,
@@ -10,16 +10,20 @@ import {
   Segmented,
   Select,
   Switch,
+  Descriptions,
+  Spin,
 } from 'antd';
 import {
   DeleteOutlined,
   UndoOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import PageHeader from '../../components/PageHeader';
 import { useCategories, useSnapshots } from '../../app/storage';
 import { useSettings, type ThemeMode } from '../../app/settings';
 import { SEED_CATEGORIES, SEED_SNAPSHOTS } from '../../services/mockData';
-import { USE_MOCK, categoryService, snapshotService } from '../../services';
+import { USE_MOCK, categoryService, snapshotService, systemService } from '../../services';
+import type { SystemInfo } from '../../services/types';
 
 const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -40,8 +44,29 @@ const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
 
 const Settings: React.FC = () => {
   const { refresh: refreshCategories } = useCategories();
-  const { refresh: refreshSnapshots } = useSnapshots();
+  const { snapshots, refresh: refreshSnapshots } = useSnapshots();
   const { settings, updateSettings, resetSettings } = useSettings();
+  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
+  const [sysInfoLoading, setSysInfoLoading] = useState(false);
+
+  const refreshSysInfo = useCallback(async () => {
+    setSysInfoLoading(true);
+    try {
+      setSysInfo(await systemService.getInfo());
+    } catch {
+      message.error('数据库信息获取失败');
+    } finally {
+      setSysInfoLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshSysInfo();
+  }, [refreshSysInfo]);
+
+  const latestDate = snapshots.length
+    ? snapshots.map((s) => s.snapshotDate).sort().at(-1)
+    : null;
 
   const handleClearAll = useCallback(async () => {
     await categoryService.reset([]);
@@ -154,6 +179,47 @@ const Settings: React.FC = () => {
         <Button type="link" onClick={resetSettings} style={{ padding: 0 }}>
           恢复默认设置
         </Button>
+      </Card>
+
+      <Card
+        title="数据库信息"
+        style={{ maxWidth: 600 }}
+        extra={
+          <Button
+            type="link"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => void refreshSysInfo()}
+          >
+            刷新
+          </Button>
+        }
+      >
+        {sysInfoLoading && !sysInfo ? (
+          <Spin />
+        ) : sysInfo ? (
+          <Descriptions column={1} size="small">
+            <Descriptions.Item label="数据模式">
+              {USE_MOCK ? 'Mock（浏览器 localStorage）' : '真实 API（服务端数据库）'}
+            </Descriptions.Item>
+            <Descriptions.Item label="数据库路径">
+              <Typography.Text style={{ wordBreak: 'break-all' }}>
+                {sysInfo.dbPath}
+              </Typography.Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="分类数量">
+              {sysInfo.categoryCount}
+            </Descriptions.Item>
+            <Descriptions.Item label="快照记录数">
+              {sysInfo.snapshotRowCount}
+            </Descriptions.Item>
+            <Descriptions.Item label="最近快照日期">
+              {latestDate ?? '暂无'}
+            </Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <Typography.Text type="secondary">暂无数据库信息</Typography.Text>
+        )}
       </Card>
     </>
   );

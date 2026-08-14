@@ -26,5 +26,8 @@ public interface AssetCategoryMapper {
 
     int countSnapshotsByCategoryId(Long categoryId);
 
+    long count();
+
+    int deleteAll();
 
 }

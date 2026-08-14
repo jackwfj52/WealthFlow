@@ -60,5 +60,12 @@
         WHERE category_id = #{categoryId}
     </select>
 
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM asset_category
+    </select>
+
+    <delete id="deleteAll">
+        DELETE FROM asset_category
+    </delete>
 
 </mapper>

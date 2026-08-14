@@ -28,3 +28,16 @@ export interface SnapshotService {
   /** 重置数据（仅 Mock 模式支持） */
   reset(snapshots: AssetSnapshot[]): Promise<void>;
 }
+
+/** 系统信息（数据库路径与数据量统计） */
+export interface SystemInfo {
+  dbPath: string;
+  categoryCount: number;
+  snapshotRowCount: number;
+}
+
+export interface SystemService {
+  getInfo(): Promise<SystemInfo>;
+  /** 清空全部数据（分类 + 快照），不可恢复 */
+  clearAll(): Promise<void>;
+}

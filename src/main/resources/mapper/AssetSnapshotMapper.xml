@@ -62,4 +62,12 @@
           AND id != #{id}
     </delete>
 
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM asset_snapshot
+    </select>
+
+    <delete id="deleteAll">
+        DELETE FROM asset_snapshot
+    </delete>
+
 </mapper>

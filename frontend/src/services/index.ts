@@ -6,11 +6,13 @@
  *
  * 页面组件只从本文件导入 service，不感知数据来源。
  */
-import type { CategoryService, SnapshotService } from './types';
+import type { CategoryService, SnapshotService, SystemService } from './types';
 import { categoryService as mockCategoryService } from './mockCategories';
 import { snapshotService as mockSnapshotService } from './mockSnapshots';
+import { systemService as mockSystemService } from './mockSystem';
 import { apiCategoryService } from './apiCategories';
 import { apiSnapshotService } from './apiSnapshots';
+import { apiSystemService } from './apiSystem';
 
 /** 当前是否处于 Mock 模式（仅显式开启，默认走真实 API） */
 export const USE_MOCK: boolean = import.meta.env.VITE_USE_MOCK === 'true';
@@ -22,3 +24,7 @@ export const categoryService: CategoryService = USE_MOCK
 export const snapshotService: SnapshotService = USE_MOCK
   ? mockSnapshotService
   : apiSnapshotService;
+
+export const systemService: SystemService = USE_MOCK
+  ? mockSystemService
+  : apiSystemService;

@@ -26,4 +26,8 @@ public interface AssetSnapshotMapper {
             @Param("snapshotDate") LocalDate snapshotDate,
             @Param("id") Long id
     );
+
+    long count();
+
+    int deleteAll();
 }
