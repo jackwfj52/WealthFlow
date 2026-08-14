@@ -12,6 +12,7 @@ import {
   Switch,
   Descriptions,
   Spin,
+  Modal,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -83,6 +84,14 @@ const Settings: React.FC = () => {
     refreshSnapshots();
     message.success('示例数据已恢复');
   }, [refreshCategories, refreshSnapshots]);
+
+  const handleClearAllApi = useCallback(async () => {
+    await systemService.clearAll();
+    refreshCategories();
+    refreshSnapshots();
+    void refreshSysInfo();
+    message.success('所有数据已清空');
+  }, [refreshCategories, refreshSnapshots, refreshSysInfo]);
 
   return (
     <>
@@ -169,9 +178,33 @@ const Settings: React.FC = () => {
             </Space>
           </>
         ) : (
-          <Typography.Paragraph type="secondary">
-            当前为真实 API 模式，数据存储在服务端数据库中，本页面不提供数据重置功能。
-          </Typography.Paragraph>
+          <>
+            <Typography.Paragraph type="secondary">
+              当前为真实 API 模式，数据存储在服务端数据库中。清空将删除所有分类与快照数据，不可恢复，建议先导出备份。
+            </Typography.Paragraph>
+
+            <Popconfirm
+              title="确认清空所有数据？"
+              description="此操作将删除服务端数据库中的所有分类和快照数据。"
+              onConfirm={() => {
+                Modal.confirm({
+                  title: '再次确认：清空全部数据？',
+                  content: '数据将被永久删除且无法恢复，请确认已做好备份。',
+                  okText: '确认清空',
+                  cancelText: '取消',
+                  okButtonProps: { danger: true },
+                  onOk: () => handleClearAllApi(),
+                });
+              }}
+              okText="继续"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                清空所有数据
+              </Button>
+            </Popconfirm>
+          </>
         )}
 
         <Divider />
