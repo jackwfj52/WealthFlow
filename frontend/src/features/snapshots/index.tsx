@@ -82,6 +82,10 @@ const Snapshots: React.FC = () => {
   const [filterDateRange, setFilterDateRange] = useState<[string, string] | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
 
+  // 批量删除
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   // --- 过滤后的数据 ---
   const filteredSnapshots = useMemo(() => {
     let result = [...snapshots];
@@ -238,6 +242,30 @@ const Snapshots: React.FC = () => {
     },
     []
   );
+
+  // --- 批量删除 ---
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedRowKeys.length === 0) return;
+    setBatchDeleting(true);
+    let success = 0;
+    let failed = 0;
+    for (const id of selectedRowKeys) {
+      try {
+        await snapshotService.delete(id);
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setSelectedRowKeys([]);
+    refreshSnapshots();
+    if (failed === 0) {
+      message.success(`已删除 ${success} 条快照`);
+    } else {
+      message.warning(`删除完成：成功 ${success} 条，失败 ${failed} 条`);
+    }
+    setBatchDeleting(false);
+  }, [selectedRowKeys, refreshSnapshots]);
 
   // --- 导入导出 ---
   const openImport = useCallback(() => {
@@ -412,6 +440,20 @@ const Snapshots: React.FC = () => {
         >
           重置筛选
         </Button>
+        {selectedRowKeys.length > 0 && (
+          <Popconfirm
+            title="批量删除"
+            description={`确定要删除选中的 ${selectedRowKeys.length} 条快照吗？此操作不可撤销。`}
+            onConfirm={handleBatchDelete}
+            okText="确认删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={batchDeleting}>
+              批量删除（{selectedRowKeys.length}）
+            </Button>
+          </Popconfirm>
+        )}
       </Space>
 
       {snapshots.length === 0 ? (
@@ -425,6 +467,10 @@ const Snapshots: React.FC = () => {
           dataSource={filteredSnapshots}
           columns={columns}
           rowKey="id"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys as string[]),
+          }}
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条快照` }}
         />
       )}
