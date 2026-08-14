@@ -141,7 +141,7 @@ const Trends: React.FC = () => {
       },
       legend: {
         type: 'scroll' as const,
-        bottom: manyPoints ? 30 : 0,
+        bottom: manyPoints ? 36 : 0,
         padding: [8, 0, 0, 0],
         data: categorySeries.map((s) => s.name),
       },
