@@ -9,7 +9,7 @@
  * - 删除需二次确认
  * - 日期严格校验 YYYY-MM-DD 真实日期，不能晚于今天
  */
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -87,6 +87,10 @@ const Snapshots: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [batchDeleting, setBatchDeleting] = useState(false);
 
+  // 分页
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
   // --- 过滤后的数据 ---
   const filteredSnapshots = useMemo(() => {
     let result = [...snapshots];
@@ -101,6 +105,12 @@ const Snapshots: React.FC = () => {
     result.sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
     return result;
   }, [snapshots, filterDateRange, filterCategory]);
+
+  // 数据变化后修正页码（如批量删除后当前页超出范围）
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredSnapshots.length / pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [filteredSnapshots.length, page, pageSize]);
 
   // --- 打开新增抽屉 ---
   const openAddDrawer = useCallback(() => {
@@ -237,8 +247,10 @@ const Snapshots: React.FC = () => {
           return;
         }
         setFilterDateRange([start, end]);
+        setPage(1);
       } else {
         setFilterDateRange(null);
+        setPage(1);
       }
     },
     []
@@ -430,13 +442,17 @@ const Snapshots: React.FC = () => {
           style={{ width: 160 }}
           options={categoryOptions}
           value={filterCategory}
-          onChange={(v) => setFilterCategory(v)}
+          onChange={(v) => {
+            setFilterCategory(v);
+            setPage(1);
+          }}
         />
         <Button
           icon={<SearchOutlined />}
           onClick={() => {
             setFilterDateRange(null);
             setFilterCategory(undefined);
+            setPage(1);
           }}
         >
           重置筛选
@@ -488,7 +504,21 @@ const Snapshots: React.FC = () => {
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys as string[]),
           }}
-          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条快照` }}
+          pagination={{
+            current: page,
+            pageSize,
+            pageSizeOptions: [10, 20, 50, 100],
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+            onChange: (p, ps) => {
+              setPage(p);
+              if (ps && ps !== pageSize) {
+                setPageSize(ps);
+                setPage(1);
+              }
+            },
+          }}
         />
       )}
 
