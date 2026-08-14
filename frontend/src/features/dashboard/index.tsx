@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Card, Col, Row, Statistic, Table, Segmented, Spin, DatePicker, Space, Button } from 'antd';
+import { Card, Col, Row, Statistic, Table, Segmented, Spin, DatePicker, Space, Button, theme } from 'antd';
 import {
   WalletOutlined,
   AppstoreOutlined,
@@ -23,6 +23,7 @@ import {
   type Aggregation,
 } from '../../utils/snapshot';
 import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
+import { hexToRgba } from '../../utils/color';
 
 const TREND_RANGES: { label: string; days: number }[] = [
   { label: '近7天', days: 7 },
@@ -35,6 +36,7 @@ const Dashboard: React.FC = () => {
   const { categories } = useCategories();
   const { snapshots, loading } = useSnapshots();
   const { settings } = useSettings();
+  const { token } = theme.useToken();
   const [trendDays, setTrendDays] = useState(settings.defaultTrendDays);
   const [aggregation, setAggregation] = useState<Aggregation>('day');
 
@@ -123,22 +125,31 @@ const Dashboard: React.FC = () => {
     return {
       tooltip: {
         trigger: 'item' as const,
+        backgroundColor: token.colorBgElevated,
+        borderColor: token.colorSplit,
+        textStyle: { color: token.colorText },
         formatter: (params: { name: string; value: number; percent: number }) =>
           `${params.name}: ${formatCurrency(params.value, settings.currencySymbol, {
             thousands: settings.thousandsSeparator,
           })} (${params.percent}%)`,
       },
-      legend: { bottom: 0, type: 'scroll' as const },
+      legend: {
+        bottom: 0,
+        type: 'scroll' as const,
+        textStyle: { color: token.colorText },
+        pageIconColor: token.colorTextSecondary,
+        pageTextStyle: { color: token.colorTextSecondary },
+      },
       series: [
         {
           type: 'pie',
           radius: ['45%', '70%'],
           center: ['50%', '45%'],
           avoidLabelOverlap: true,
-          itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+          itemStyle: { borderRadius: 4, borderColor: token.colorBgContainer, borderWidth: 2 },
           label: { show: false },
           emphasis: {
-            label: { show: true, fontSize: 14, fontWeight: 'bold' },
+            label: { show: true, fontSize: 14, fontWeight: 'bold', color: token.colorText },
           },
           data: categoryPieData.map((c) => ({
             name: c.categoryName,
@@ -147,7 +158,7 @@ const Dashboard: React.FC = () => {
         },
       ],
     };
-  }, [categoryPieData, settings]);
+  }, [categoryPieData, settings, token]);
 
   // --- trend line option ---
   const trendOption = useMemo(() => {
@@ -158,6 +169,9 @@ const Dashboard: React.FC = () => {
     return {
       tooltip: {
         trigger: 'axis' as const,
+        backgroundColor: token.colorBgElevated,
+        borderColor: token.colorSplit,
+        textStyle: { color: token.colorText },
         formatter: (params: { name: string; value: number }[]) => {
           const p = params[0];
           return `${p.name}<br/>总资产: ${formatCurrency(p.value, settings.currencySymbol, {
@@ -169,13 +183,17 @@ const Dashboard: React.FC = () => {
       xAxis: {
         type: 'category' as const,
         data: trendData.map((d) => d.label),
-        axisLabel: { rotate: 45, fontSize: 11 },
+        axisLabel: { rotate: 45, fontSize: 11, color: token.colorTextSecondary },
+        axisLine: { lineStyle: { color: token.colorSplit } },
       },
       yAxis: {
         type: 'value' as const,
         axisLabel: {
+          color: token.colorTextSecondary,
           formatter: (v: number) => formatAxisAmount(v, amountUnit, settings.currencySymbol),
         },
+        axisLine: { lineStyle: { color: token.colorSplit } },
+        splitLine: { lineStyle: { color: token.colorSplit } },
       },
       series: [
         {
@@ -189,17 +207,17 @@ const Dashboard: React.FC = () => {
               type: 'linear',
               x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(24,144,255,0.3)' },
-                { offset: 1, color: 'rgba(24,144,255,0.02)' },
+                { offset: 0, color: hexToRgba(token.colorPrimary, 0.3) },
+                { offset: 1, color: hexToRgba(token.colorPrimary, 0.02) },
               ],
             },
           },
-          lineStyle: { color: '#1890ff', width: 2 },
-          itemStyle: { color: '#1890ff' },
+          lineStyle: { color: token.colorPrimary, width: 2 },
+          itemStyle: { color: token.colorPrimary },
         },
       ],
     };
-  }, [trendData, settings]);
+  }, [trendData, settings, token]);
 
   // --- category table columns ---
   // 三列等宽：不设宽度，由 fixed 布局平均分配
@@ -249,7 +267,7 @@ const Dashboard: React.FC = () => {
               valueRender={() => (
                 <AmountText
                   amount={selectedSnapshot?.totalAmount ?? '0'}
-                  style={{ fontSize: 24, fontWeight: 600, color: '#1890ff' }}
+                  style={{ fontSize: 24, fontWeight: 600, color: token.colorPrimary }}
                 />
               )}
               prefix={<WalletOutlined />}
@@ -267,7 +285,7 @@ const Dashboard: React.FC = () => {
         </Col>
         <Col xs={24} sm={8}>
           <Card>
-            <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 14, marginBottom: 12 }}>
+            <div style={{ color: token.colorTextSecondary, fontSize: 14, marginBottom: 12 }}>
               <CalendarOutlined style={{ marginRight: 8 }} />
               快照日期
             </div>

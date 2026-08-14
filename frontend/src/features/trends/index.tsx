@@ -18,6 +18,7 @@ import {
   Typography,
   Spin,
   message,
+  theme,
 } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
@@ -29,6 +30,7 @@ import { useSettings } from '../../app/settings';
 import { getCategoryTrendData, aggregateTrendData, type Aggregation } from '../../utils/snapshot';
 import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 import { isValidDateRange } from '../../utils/date';
+import { hexToRgba } from '../../utils/color';
 
 dayjs.extend(customParseFormat);
 
@@ -49,6 +51,7 @@ const Trends: React.FC = () => {
   const { snapshots, loading } = useSnapshots();
   const { categories } = useCategories();
   const { settings } = useSettings();
+  const { token } = theme.useToken();
 
   const [rangePreset, setRangePreset] = useState<number>(settings.defaultTrendDays);
   const [customRange, setCustomRange] = useState<[string, string] | null>(null);
@@ -136,6 +139,9 @@ const Trends: React.FC = () => {
     return {
       tooltip: {
         trigger: 'axis' as const,
+        backgroundColor: token.colorBgElevated,
+        borderColor: token.colorSplit,
+        textStyle: { color: token.colorText },
         formatter: (params: { seriesName: string; name: string; value: number }[]) => {
           const lines = params.map(
             (p) =>
@@ -151,18 +157,25 @@ const Trends: React.FC = () => {
         bottom: manyPoints ? 30 : 0,
         padding: [8, 0, 0, 0],
         data: categorySeries.map((s) => s.name),
+        textStyle: { color: token.colorText },
+        pageIconColor: token.colorTextSecondary,
+        pageTextStyle: { color: token.colorTextSecondary },
       },
       grid: { left: 60, right: 20, top: 20, bottom: manyPoints ? 100 : 72 },
       xAxis: {
         type: 'category' as const,
         data: xLabels,
-        axisLabel: { rotate: 45, fontSize: 11 },
+        axisLabel: { rotate: 45, fontSize: 11, color: token.colorTextSecondary },
+        axisLine: { lineStyle: { color: token.colorSplit } },
       },
       yAxis: {
         type: 'value' as const,
         axisLabel: {
+          color: token.colorTextSecondary,
           formatter: (v: number) => formatAxisAmount(v, amountUnit, settings.currencySymbol),
         },
+        axisLine: { lineStyle: { color: token.colorSplit } },
+        splitLine: { lineStyle: { color: token.colorSplit } },
       },
       dataZoom: manyPoints
         ? [
@@ -174,6 +187,23 @@ const Trends: React.FC = () => {
               start: zoomStart,
               end: 100,
               brushSelect: false,
+              borderColor: token.colorSplit,
+              backgroundColor: token.colorFillTertiary,
+              fillerColor: hexToRgba(token.colorPrimary, 0.25),
+              dataBackground: {
+                lineStyle: { color: token.colorSplit },
+                areaStyle: { color: token.colorFillTertiary },
+              },
+              selectedDataBackground: {
+                lineStyle: { color: token.colorPrimary },
+                areaStyle: { color: hexToRgba(token.colorPrimary, 0.25) },
+              },
+              handleStyle: {
+                color: token.colorBgElevated,
+                borderColor: token.colorBorderSecondary,
+              },
+              moveHandleStyle: { color: token.colorSplit },
+              textStyle: { color: token.colorTextSecondary },
             },
           ]
         : [],
@@ -188,7 +218,7 @@ const Trends: React.FC = () => {
         itemStyle: { color: s.color },
       })),
     };
-  }, [categorySeries, settings]);
+  }, [categorySeries, settings, token]);
 
   // 数据不足说明
   const dataInsufficient = rangeSnapshots.length < 2;
