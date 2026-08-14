@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, Col, Row, Statistic, Table, Segmented, Spin, DatePicker, Space, Button } from 'antd';
 import {
   WalletOutlined,
@@ -64,6 +64,38 @@ const Dashboard: React.FC = () => {
     if (!selectedSnapshot) return -1;
     return sortedDates.indexOf(selectedSnapshot.snapshotDate);
   }, [selectedSnapshot, sortedDates]);
+
+  // 键盘左右方向键切换查询日期：点按切一天，长按由系统按键重复连续切换
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        !tag ||
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        tag === 'BUTTON' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        setSelectedDate(sortedDates[currentIndex - 1]);
+        e.preventDefault();
+      } else if (
+        e.key === 'ArrowRight' &&
+        currentIndex >= 0 &&
+        currentIndex < sortedDates.length - 1
+      ) {
+        setSelectedDate(sortedDates[currentIndex + 1]);
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, sortedDates]);
 
   const categoryPieData = useMemo(
     () => getCategoryPercentages(selectedSnapshot?.items ?? []),
@@ -234,7 +266,10 @@ const Dashboard: React.FC = () => {
                 type="text"
                 icon={<LeftOutlined />}
                 disabled={currentIndex <= 0}
-                onClick={() => setSelectedDate(sortedDates[currentIndex - 1])}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  setSelectedDate(sortedDates[currentIndex - 1]);
+                }}
                 aria-label="上一个快照日期"
               />
               <DatePicker
@@ -255,7 +290,10 @@ const Dashboard: React.FC = () => {
                 type="text"
                 icon={<RightOutlined />}
                 disabled={currentIndex < 0 || currentIndex >= sortedDates.length - 1}
-                onClick={() => setSelectedDate(sortedDates[currentIndex + 1])}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  setSelectedDate(sortedDates[currentIndex + 1]);
+                }}
                 aria-label="下一个快照日期"
               />
             </Space>
