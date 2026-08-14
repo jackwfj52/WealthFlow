@@ -115,6 +115,13 @@ const Trends: React.FC = () => {
     // x 轴标签：取第一个系列的日期
     const xLabels = categorySeries[0]?.data.map((d) => d.date) ?? [];
 
+    // 数据点较多时启用横向缩放，默认显示最近 60 个点
+    const manyPoints = xLabels.length > 90;
+    const VISIBLE_POINTS = 60;
+    const zoomStart = manyPoints
+      ? Math.max(0, (1 - VISIBLE_POINTS / xLabels.length) * 100)
+      : 0;
+
     // y 轴单位按数据最大值自适应（百/千/万/十万...）
     let maxValue = 0;
     for (const s of categorySeries) {
@@ -138,7 +145,7 @@ const Trends: React.FC = () => {
         padding: [8, 0, 0, 0],
         data: categorySeries.map((s) => s.name),
       },
-      grid: { left: 60, right: 20, top: 20, bottom: 72 },
+      grid: { left: 60, right: 20, top: 20, bottom: manyPoints ? 100 : 72 },
       xAxis: {
         type: 'category' as const,
         data: xLabels,
@@ -148,6 +155,19 @@ const Trends: React.FC = () => {
         type: 'value' as const,
         axisLabel: { formatter: (v: number) => formatAxisAmount(v, amountUnit) },
       },
+      dataZoom: manyPoints
+        ? [
+            { type: 'inside' },
+            {
+              type: 'slider',
+              height: 18,
+              bottom: 32,
+              start: zoomStart,
+              end: 100,
+              brushSelect: false,
+            },
+          ]
+        : [],
       series: categorySeries.map((s) => ({
         name: s.name,
         type: 'line',
