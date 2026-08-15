@@ -3,7 +3,8 @@ spring:
     name: WealthFlow
 
   datasource:
-    url: jdbc:sqlite:wealthflow.db
+    # 数据路径可用 WEALTHFLOW_DB_PATH 环境变量覆盖（桌面端指向 AppData 数据目录），默认保持开发行为
+    url: jdbc:sqlite:${WEALTHFLOW_DB_PATH:wealthflow.db}
     driver-class-name: org.sqlite.JDBC
 
   sql:
