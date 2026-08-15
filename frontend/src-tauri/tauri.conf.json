@@ -10,7 +10,10 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": false
+    "withGlobalTauri": false,
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
@@ -23,8 +26,5 @@
       "icons/icon.ico"
     ],
     "resources": ["resources/server"]
-  },
-  "security": {
-    "csp": null
   }
 }
