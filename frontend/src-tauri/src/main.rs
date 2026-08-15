@@ -12,17 +12,12 @@ const SERVER_PORT: u16 = 18080;
 
 struct ServerProcess(Mutex<Option<Child>>);
 
-/// 启动内嵌后端：jpackage 镜像自带精简 JRE，直接以 javaw -jar 方式运行
+/// 启动内嵌后端：jpackage 原生启动器（进程内加载 JVM，随启动器一同退出）
 fn spawn_backend(app: &tauri::AppHandle) -> Result<Child, Box<dyn std::error::Error>> {
     let resource_dir = app.path().resource_dir()?;
-    let java = resource_dir
-        .join("server")
-        .join("runtime")
-        .join("bin")
-        .join("javaw.exe");
-    let jar = resource_dir.join("server").join("app").join("wealthflow.jar");
-    if !java.exists() || !jar.exists() {
-        return Err(format!("内嵌后端缺失：{} / {}", java.display(), jar.display()).into());
+    let server_exe = resource_dir.join("server").join("WealthFlowServer.exe");
+    if !server_exe.exists() {
+        return Err(format!("内嵌后端缺失：{}", server_exe.display()).into());
     }
 
     // 用户数据放在 AppData 数据目录，升级安装不丢失
@@ -30,9 +25,7 @@ fn spawn_backend(app: &tauri::AppHandle) -> Result<Child, Box<dyn std::error::Er
     std::fs::create_dir_all(&data_dir)?;
     let db_path = data_dir.join("wealthflow.db").to_string_lossy().replace('\\', "/");
 
-    let child = Command::new(java)
-        .arg("-jar")
-        .arg(jar)
+    let child = Command::new(server_exe)
         .env("SERVER_PORT", SERVER_PORT.to_string())
         .env("WEALTHFLOW_DB_PATH", db_path)
         .creation_flags(0x0800_0000) // CREATE_NO_WINDOW：不弹出控制台
