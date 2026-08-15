@@ -4,7 +4,7 @@
  * 支持：
  * - 时间范围：7天 / 30天 / 90天 / 自定义
  * - 聚合：日 / 周 / 月
- * - 按分类动态生成折线图
+ * - 总资产曲线 + 按分类动态生成折线图
  * - 数据不足时显示说明，不伪造数据
  */
 import React, { useMemo, useState } from 'react';
@@ -27,7 +27,12 @@ import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import { useSnapshots, useCategories } from '../../app/storage';
 import { useSettings } from '../../app/settings';
-import { getCategoryTrendData, aggregateTrendData, type Aggregation } from '../../utils/snapshot';
+import {
+  getCategoryTrendData,
+  getTrendData,
+  aggregateTrendData,
+  type Aggregation,
+} from '../../utils/snapshot';
 import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 import { isValidDateRange } from '../../utils/date';
 import { hexToRgba } from '../../utils/color';
@@ -114,11 +119,27 @@ const Trends: React.FC = () => {
     });
   }, [snapshots, displayCategoryIds, aggregation, dateRange, categories]);
 
+  // 总资产趋势（不受分类筛选影响，始终展示）
+  const totalSeries = useMemo(() => {
+    const rawData = getTrendData(snapshots, dateRange[0], dateRange[1]);
+    const aggregated = aggregateTrendData(rawData, aggregation);
+    return {
+      name: '总资产',
+      data: aggregated.map((d) => ({
+        date: d.label,
+        value: parseFloat(d.totalAmount),
+      })),
+    };
+  }, [snapshots, dateRange, aggregation]);
+
   // 构建 ECharts option
   const chartOption = useMemo(() => {
-    if (categorySeries.length === 0) return {};
-    // x 轴标签：取第一个系列的日期
-    const xLabels = categorySeries[0]?.data.map((d) => d.date) ?? [];
+    if (totalSeries.data.length === 0 && categorySeries.length === 0) return {};
+    // x 轴标签：总资产序列覆盖范围内所有快照日期，优先取它
+    const xLabels =
+      totalSeries.data.length > 0
+        ? totalSeries.data.map((d) => d.date)
+        : (categorySeries[0]?.data.map((d) => d.date) ?? []);
 
     // 数据点较多时启用横向缩放，默认显示最近 60 个点
     const manyPoints = xLabels.length > 90;
@@ -129,7 +150,8 @@ const Trends: React.FC = () => {
 
     // y 轴单位按数据最大值自适应（百/千/万/十万...）
     let maxValue = 0;
-    for (const s of categorySeries) {
+    const allSeries = [totalSeries, ...categorySeries];
+    for (const s of allSeries) {
       for (const d of s.data) {
         maxValue = Math.max(maxValue, d.value);
       }
@@ -156,7 +178,7 @@ const Trends: React.FC = () => {
         type: 'scroll' as const,
         bottom: manyPoints ? 30 : 0,
         padding: [8, 0, 0, 0],
-        data: categorySeries.map((s) => s.name),
+        data: [totalSeries.name, ...categorySeries.map((s) => s.name)],
         textStyle: { color: token.colorText },
         pageIconColor: token.colorTextSecondary,
         pageTextStyle: { color: token.colorTextSecondary },
@@ -207,18 +229,40 @@ const Trends: React.FC = () => {
             },
           ]
         : [],
-      series: categorySeries.map((s) => ({
-        name: s.name,
-        type: 'line',
-        data: s.data.map((d) => d.value),
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 4,
-        lineStyle: { color: s.color, width: 2 },
-        itemStyle: { color: s.color },
-      })),
+      series: [
+        {
+          name: totalSeries.name,
+          type: 'line',
+          data: totalSeries.data.map((d) => d.value),
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: hexToRgba(token.colorPrimary, 0.3) },
+                { offset: 1, color: hexToRgba(token.colorPrimary, 0.02) },
+              ],
+            },
+          },
+          lineStyle: { color: token.colorPrimary, width: 3 },
+          itemStyle: { color: token.colorPrimary },
+        },
+        ...categorySeries.map((s) => ({
+          name: s.name,
+          type: 'line',
+          data: s.data.map((d) => d.value),
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 4,
+          lineStyle: { color: s.color, width: 2 },
+          itemStyle: { color: s.color },
+        })),
+      ],
     };
-  }, [categorySeries, settings, token]);
+  }, [totalSeries, categorySeries, settings, token]);
 
   // 数据不足说明
   const dataInsufficient = rangeSnapshots.length < 2;
@@ -303,11 +347,11 @@ const Trends: React.FC = () => {
       )}
 
       {/* 趋势图 */}
-      <Card title="分类资产趋势">
-        {categorySeries.length > 0 ? (
+      <Card title="资产趋势">
+        {totalSeries.data.length > 0 || categorySeries.length > 0 ? (
           <ReactECharts notMerge option={chartOption} style={{ height: 420 }} />
         ) : (
-          <Empty description="所选分类无数据" />
+          <Empty description="当前时间范围内无快照数据" />
         )}
       </Card>
     </>
