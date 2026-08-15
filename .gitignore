@@ -45,3 +45,9 @@ Thumbs.db
 node_modules
 frontend/dist/
 docs/
+
+### Tauri ###
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+# jpackage 生成的内嵌后端镜像（构建脚本产物，约百 MB，不入库）
+frontend/src-tauri/resources/server/

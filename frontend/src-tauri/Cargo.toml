@@ -1,0 +1,17 @@
+[package]
+name = "wealthflow"
+version = "2.0.0"
+description = "WealthFlow 桌面应用（个人资产快照管理）"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# 生产构建（无 dev server）加载前端资源时需要，勿删除
+custom-protocol = ["tauri/custom-protocol"]
