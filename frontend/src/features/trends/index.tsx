@@ -4,7 +4,7 @@
  * 支持：
  * - 时间范围：7天 / 30天 / 90天 / 自定义
  * - 聚合：日 / 周 / 月
- * - 总资产曲线（可开关）+ 按分类动态生成折线图
+ * - 总资产曲线（可开关，未选分类时默认仅显示总资产）+ 按分类动态生成折线图
  * - 数据不足时显示说明，不伪造数据
  */
 import React, { useMemo, useState } from 'react';
@@ -83,16 +83,11 @@ const Trends: React.FC = () => {
       .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
   }, [snapshots, dateRange]);
 
-  // 默认选中所有分类
-  const displayCategoryIds = useMemo(() => {
-    if (selectedCategoryIds.length > 0) return selectedCategoryIds;
-    return categories.map((c) => c.id);
-  }, [selectedCategoryIds, categories]);
-
   // 按分类生成趋势数据（仅使用范围内的快照）
+  // 未选择分类时仅显示总资产，选中后才叠加分类曲线
   const categorySeries = useMemo(() => {
     if (aggregation === 'day') {
-      return displayCategoryIds.map((catId, idx) => {
+      return selectedCategoryIds.map((catId, idx) => {
         const cat = categories.find((c) => c.id === catId);
         const rawData = getCategoryTrendData(snapshots, catId, dateRange[0], dateRange[1]);
         return {
@@ -106,7 +101,7 @@ const Trends: React.FC = () => {
       });
     }
     // 对于周/月聚合，需要手动聚合每个分类的数据
-    return displayCategoryIds.map((catId, idx) => {
+    return selectedCategoryIds.map((catId, idx) => {
       const cat = categories.find((c) => c.id === catId);
       const rawData = getCategoryTrendData(snapshots, catId, dateRange[0], dateRange[1]);
       const aggregated = aggregateTrendData(
@@ -122,7 +117,7 @@ const Trends: React.FC = () => {
         })),
       };
     });
-  }, [snapshots, displayCategoryIds, aggregation, dateRange, categories]);
+  }, [snapshots, selectedCategoryIds, aggregation, dateRange, categories]);
 
   // 总资产趋势（不受分类筛选影响，始终展示）
   const totalSeries = useMemo(() => {
@@ -344,7 +339,7 @@ const Trends: React.FC = () => {
         />
         <Select
           mode="multiple"
-          placeholder="选择分类（默认全部）"
+          placeholder="选择分类（不选仅显示总资产）"
           style={{ minWidth: 240 }}
           value={selectedCategoryIds}
           onChange={setSelectedCategoryIds}
