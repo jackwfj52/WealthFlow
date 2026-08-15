@@ -4,7 +4,7 @@
  * 支持：
  * - 时间范围：7天 / 30天 / 90天 / 自定义
  * - 聚合：日 / 周 / 月
- * - 总资产曲线 + 按分类动态生成折线图
+ * - 总资产曲线（可开关）+ 按分类动态生成折线图
  * - 数据不足时显示说明，不伪造数据
  */
 import React, { useMemo, useState } from 'react';
@@ -19,6 +19,7 @@ import {
   Spin,
   message,
   theme,
+  Checkbox,
 } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
@@ -52,6 +53,9 @@ const COLORS = [
   '#13c2c2', '#eb2f96', '#fa8c16', '#2f54eb', '#a0d911',
 ];
 
+// 总资产曲线专用色（火山橙），避开 COLORS 调色板，防止图例颜色与分类重复
+const TOTAL_COLOR = '#fa541c';
+
 const Trends: React.FC = () => {
   const { snapshots, loading } = useSnapshots();
   const { categories } = useCategories();
@@ -62,6 +66,7 @@ const Trends: React.FC = () => {
   const [customRange, setCustomRange] = useState<[string, string] | null>(null);
   const [aggregation, setAggregation] = useState<Aggregation>(settings.defaultAggregation);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [showTotal, setShowTotal] = useState(true);
 
   // 确定实际起止日期
   const dateRange = useMemo((): [string, string] => {
@@ -134,12 +139,12 @@ const Trends: React.FC = () => {
 
   // 构建 ECharts option
   const chartOption = useMemo(() => {
-    if (totalSeries.data.length === 0 && categorySeries.length === 0) return {};
+    const showTotalSeries = showTotal && totalSeries.data.length > 0;
+    if (!showTotalSeries && categorySeries.length === 0) return {};
     // x 轴标签：总资产序列覆盖范围内所有快照日期，优先取它
-    const xLabels =
-      totalSeries.data.length > 0
-        ? totalSeries.data.map((d) => d.date)
-        : (categorySeries[0]?.data.map((d) => d.date) ?? []);
+    const xLabels = showTotalSeries
+      ? totalSeries.data.map((d) => d.date)
+      : (categorySeries[0]?.data.map((d) => d.date) ?? []);
 
     // 数据点较多时启用横向缩放，默认显示最近 60 个点
     const manyPoints = xLabels.length > 90;
@@ -150,7 +155,7 @@ const Trends: React.FC = () => {
 
     // y 轴单位按数据最大值自适应（百/千/万/十万...）
     let maxValue = 0;
-    const allSeries = [totalSeries, ...categorySeries];
+    const allSeries = showTotalSeries ? [totalSeries, ...categorySeries] : categorySeries;
     for (const s of allSeries) {
       for (const d of s.data) {
         maxValue = Math.max(maxValue, d.value);
@@ -178,7 +183,9 @@ const Trends: React.FC = () => {
         type: 'scroll' as const,
         bottom: manyPoints ? 30 : 0,
         padding: [8, 0, 0, 0],
-        data: [totalSeries.name, ...categorySeries.map((s) => s.name)],
+        data: showTotalSeries
+          ? [totalSeries.name, ...categorySeries.map((s) => s.name)]
+          : categorySeries.map((s) => s.name),
         textStyle: { color: token.colorText },
         pageIconColor: token.colorTextSecondary,
         pageTextStyle: { color: token.colorTextSecondary },
@@ -230,26 +237,30 @@ const Trends: React.FC = () => {
           ]
         : [],
       series: [
-        {
-          name: totalSeries.name,
-          type: 'line',
-          data: totalSeries.data.map((d) => d.value),
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 6,
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: hexToRgba(token.colorPrimary, 0.3) },
-                { offset: 1, color: hexToRgba(token.colorPrimary, 0.02) },
-              ],
-            },
-          },
-          lineStyle: { color: token.colorPrimary, width: 3 },
-          itemStyle: { color: token.colorPrimary },
-        },
+        ...(showTotalSeries
+          ? [
+              {
+                name: totalSeries.name,
+                type: 'line',
+                data: totalSeries.data.map((d) => d.value),
+                smooth: true,
+                symbol: 'circle',
+                symbolSize: 6,
+                areaStyle: {
+                  color: {
+                    type: 'linear',
+                    x: 0, y: 0, x2: 0, y2: 1,
+                    colorStops: [
+                      { offset: 0, color: hexToRgba(TOTAL_COLOR, 0.3) },
+                      { offset: 1, color: hexToRgba(TOTAL_COLOR, 0.02) },
+                    ],
+                  },
+                },
+                lineStyle: { color: TOTAL_COLOR, width: 3 },
+                itemStyle: { color: TOTAL_COLOR },
+              },
+            ]
+          : []),
         ...categorySeries.map((s) => ({
           name: s.name,
           type: 'line',
@@ -262,10 +273,14 @@ const Trends: React.FC = () => {
         })),
       ],
     };
-  }, [totalSeries, categorySeries, settings, token]);
+  }, [totalSeries, categorySeries, settings, token, showTotal]);
 
   // 数据不足说明
   const dataInsufficient = rangeSnapshots.length < 2;
+
+  // 是否还有可展示的曲线
+  const hasChartData =
+    (showTotal && totalSeries.data.length > 0) || categorySeries.length > 0;
 
   if (loading) {
     return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
@@ -337,6 +352,12 @@ const Trends: React.FC = () => {
           allowClear
           maxTagCount={3}
         />
+        <Checkbox
+          checked={showTotal}
+          onChange={(e) => setShowTotal(e.target.checked)}
+        >
+          显示总资产
+        </Checkbox>
       </Space>
 
       {/* 数据不足提示 */}
@@ -348,7 +369,7 @@ const Trends: React.FC = () => {
 
       {/* 趋势图 */}
       <Card title="资产趋势">
-        {totalSeries.data.length > 0 || categorySeries.length > 0 ? (
+        {hasChartData ? (
           <ReactECharts notMerge option={chartOption} style={{ height: 420 }} />
         ) : (
           <Empty description="当前时间范围内无快照数据" />
