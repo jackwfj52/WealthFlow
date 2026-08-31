@@ -27,3 +27,18 @@ WHERE NOT EXISTS (
     FROM asset_category
     WHERE name = '现金'
 );
+
+CREATE TABLE IF NOT EXISTS pending_action (
+    id TEXT PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    display_summary TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    executed_at TEXT,
+    failure_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_action_status_expires_at
+    ON pending_action(status, expires_at);
