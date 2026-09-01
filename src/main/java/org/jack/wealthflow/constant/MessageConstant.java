@@ -25,4 +25,9 @@ public class MessageConstant {
     public static final String ASSET_SNAPSHOT_UPDATE_FAILED = "资产快照修改失败";
     public static final String ASSET_SNAPSHOT_DELETE_FAILED = "资产快照删除失败";
 
+    public static final String PENDING_ACTION_NOT_FOUND = "待确认操作不存在";
+    public static final String PENDING_ACTION_NOT_PENDING = "该操作当前不能执行";
+    public static final String PENDING_ACTION_EXPIRED = "该操作已过期，请重新发起";
+    public static final String PENDING_ACTION_CREATE_FAILED = "待确认操作创建失败";
+    public static final String PENDING_ACTION_STATUS_UPDATE_FAILED = "待确认操作状态更新失败";
 }

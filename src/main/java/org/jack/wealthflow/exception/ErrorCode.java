@@ -8,6 +8,11 @@ public enum ErrorCode {
     CATEGORY_NAME_EXISTS(40901, 409, "名称已存在"),
     CATEGORY_HAS_SNAPSHOTS(40902, 409, "资产分类下存在快照，无法删除"),
     SNAPSHOT_DATE_EXISTS(40903, 409, "该日期已经存在快照，请使用编辑功能"),
+
+    PENDING_ACTION_NOT_FOUND(40403, 404, "待确认操作不存在"),
+    PENDING_ACTION_NOT_PENDING(40904, 409, "该操作当前不能执行"),
+    PENDING_ACTION_EXPIRED(40905, 409, "该操作已过期，请重新发起"),
+
     SERVER_ERROR(50000, 500, "服务器内部错误");
 
     private final int code;
