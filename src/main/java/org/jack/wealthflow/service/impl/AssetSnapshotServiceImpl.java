@@ -294,4 +294,34 @@ public class AssetSnapshotServiceImpl implements AssetSnapshotService {
         }
         return category.getName();
     }
+
+    @Override
+    public AssetSnapshotResponse previewCreate(
+            LocalDate snapshotDate,
+            List<AssetSnapshot> items
+    ) {
+        validateSnapshotDate(snapshotDate);
+
+        List<AssetSnapshot> validItems = validateAndCopyItems(items);
+
+        List<AssetSnapshot> existingSnapshots =
+                assetSnapshotMapper.findBySnapshotDate(snapshotDate);
+
+        if (!existingSnapshots.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.SNAPSHOT_DATE_EXISTS,
+                    MessageConstant.SNAPSHOT_DATE_EXISTS,
+                    new SnapshotDateExistsResponse(
+                            String.valueOf(existingSnapshots.get(0).getId())
+                    )
+            );
+        }
+
+        return toResponse(
+                null,
+                snapshotDate,
+                validItems,
+                new HashMap<>()
+        );
+    }
 }
