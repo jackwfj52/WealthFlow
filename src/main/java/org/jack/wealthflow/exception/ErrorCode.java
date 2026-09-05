@@ -12,8 +12,10 @@ public enum ErrorCode {
     PENDING_ACTION_NOT_FOUND(40403, 404, "待确认操作不存在"),
     PENDING_ACTION_NOT_PENDING(40904, 409, "该操作当前不能执行"),
     PENDING_ACTION_EXPIRED(40905, 409, "该操作已过期，请重新发起"),
+    PENDING_ACTION_TYPE_MISMATCH(40906, 409, "待确认操作类型不匹配"),
 
-    SERVER_ERROR(50000, 500, "服务器内部错误");
+    SERVER_ERROR(50000, 500, "服务器内部错误"),
+    SNAPSHOT_DRAFT_PARSE_FAILED(50001, 500, "快照草案数据已损坏，无法执行");
 
     private final int code;
     private final int httpStatus;
