@@ -23,4 +23,9 @@ public interface AssetSnapshotService {
     );
 
     void deleteById(Long id);
+
+    AssetSnapshotResponse previewCreate(
+            LocalDate snapshotDate,
+            List<AssetSnapshot> items
+    );
 }

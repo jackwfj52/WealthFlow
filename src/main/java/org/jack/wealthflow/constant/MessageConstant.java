@@ -30,4 +30,5 @@ public class MessageConstant {
     public static final String PENDING_ACTION_EXPIRED = "该操作已过期，请重新发起";
     public static final String PENDING_ACTION_CREATE_FAILED = "待确认操作创建失败";
     public static final String PENDING_ACTION_STATUS_UPDATE_FAILED = "待确认操作状态更新失败";
+    public static final String SNAPSHOT_DRAFT_SERIALIZE_FAILED = "快照草案数据处理失败";
 }
