@@ -6,6 +6,7 @@ const Dashboard = lazy(() => import('../features/dashboard'));
 const Snapshots = lazy(() => import('../features/snapshots'));
 const Categories = lazy(() => import('../features/categories'));
 const Trends = lazy(() => import('../features/trends'));
+const Agent = lazy(() => import('../features/agent'));
 const Settings = lazy(() => import('../features/settings'));
 
 const Loading = () => (
@@ -20,6 +21,7 @@ const AppRouter: React.FC = () => (
       <Route path="/snapshots" element={<Snapshots />} />
       <Route path="/categories" element={<Categories />} />
       <Route path="/trends" element={<Trends />} />
+      <Route path="/agent" element={<Agent />} />
       <Route path="/settings" element={<Settings />} />
     </Routes>
   </Suspense>
