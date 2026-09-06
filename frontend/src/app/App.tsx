@@ -5,6 +5,7 @@ import {
   CameraOutlined,
   AppstoreOutlined,
   LineChartOutlined,
+  RobotOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -20,6 +21,7 @@ const menuItems = [
   { key: '/snapshots', icon: <CameraOutlined />, label: '资产快照' },
   { key: '/categories', icon: <AppstoreOutlined />, label: '分类管理' },
   { key: '/trends', icon: <LineChartOutlined />, label: '趋势分析' },
+  { key: '/agent', icon: <RobotOutlined />, label: 'AI 助手' },
   { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
 
