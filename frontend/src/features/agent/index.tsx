@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -6,12 +6,14 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Divider,
+  Form,
   Input,
+  InputNumber,
   List,
   Row,
   Space,
-  Tag,
   Typography,
   message,
   theme,
@@ -19,23 +21,35 @@ import {
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
-  DatabaseOutlined,
+  FileAddOutlined,
   RobotOutlined,
   SendOutlined,
   UserOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import PageHeader from '../../components/PageHeader';
+import AmountText from '../../components/AmountText';
+import { useCategories, useSnapshots } from '../../app/storage';
+import { apiAgentActions } from '../../services/apiAgentActions';
+import type {
+  CreateSnapshotDraftResult,
+  PendingActionExecutionResult,
+} from '../../services/apiAgentActions';
 
 const { Text, Paragraph } = Typography;
 
 type MessageRole = 'assistant' | 'user';
-type ActionStatus = 'PENDING' | 'EXECUTED' | 'CANCELLED';
 
 interface ChatMessage {
   id: number;
   role: MessageRole;
   content: string;
+}
+
+interface DraftEntryFormValues {
+  snapshotDate: dayjs.Dayjs;
+  amounts?: Record<string, string | number | undefined>;
 }
 
 const SUGGESTIONS = [
@@ -50,40 +64,25 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 1,
     role: 'assistant',
     content:
-      '你好，我是 WealthFlow AI 助手。我可以帮你解读资产趋势、查看分类变化，并在你确认后执行创建快照等操作。',
+      '你好，我是 WealthFlow AI 助手。当前聊天尚未接入大模型，回复为演示内容；右侧"待确认操作"已接入真实的快照草案与确认流程。',
   },
 ];
 
 const Agent: React.FC = () => {
   const { token } = theme.useToken();
+  const { categories } = useCategories();
+  const { refresh: refreshSnapshots } = useSnapshots();
+
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
-  const [actionStatus, setActionStatus] = useState<ActionStatus>('PENDING');
+  const [form] = Form.useForm<DraftEntryFormValues>();
 
-  const actionConfig = useMemo(() => {
-    if (actionStatus === 'EXECUTED') {
-      return {
-        badge: '已执行',
-        badgeStatus: 'success' as const,
-        icon: <CheckCircleOutlined style={{ color: token.colorSuccess }} />,
-        description: '界面演示：已模拟创建结果。接入确认接口后才会写入真实快照。',
-      };
-    }
-    if (actionStatus === 'CANCELLED') {
-      return {
-        badge: '已取消',
-        badgeStatus: 'default' as const,
-        icon: <CloseCircleOutlined style={{ color: token.colorTextSecondary }} />,
-        description: '该草案已取消，不会修改任何资产数据。',
-      };
-    }
-    return {
-      badge: '等待确认',
-      badgeStatus: 'warning' as const,
-      icon: <WarningOutlined style={{ color: token.colorWarning }} />,
-      description: '请核对日期、分类和金额；确认前不会写入任何资产数据。',
-    };
-  }, [actionStatus, token]);
+  const [draft, setDraft] = useState<CreateSnapshotDraftResult | null>(null);
+  const [execution, setExecution] = useState<PendingActionExecutionResult | null>(null);
+  const [creatingDraft, setCreatingDraft] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const executed = execution?.status === 'EXECUTED';
 
   const sendMessage = (text?: string) => {
     const content = (text ?? input).trim();
@@ -96,38 +95,89 @@ const Agent: React.FC = () => {
         id: Date.now() + 1,
         role: 'assistant',
         content: content.includes('快照')
-          ? '我已为你准备了一份快照创建草案，请在右侧核对后确认。'
-          : '这是界面演示。接入 Agent 工具后，我会先查询本地真实数据，再基于结果回答你。',
+          ? '聊天尚未接入模型，无法自动生成草案。请在右侧手动填写快照日期与分类金额，然后点击"生成待确认草案"。'
+          : '聊天尚未接入模型，当前回复仅为演示内容。',
       },
     ]);
     setInput('');
   };
 
-  const confirmDraft = () => {
-    setActionStatus('EXECUTED');
-    message.success('演示操作已确认；尚未写入真实资产数据');
+  const generateDraft = async () => {
+    try {
+      const values = await form.validateFields();
+      const snapshotDate = values.snapshotDate.format('YYYY-MM-DD');
+
+      const items = Object.entries(values.amounts ?? {})
+        .filter(
+          ([, amount]) =>
+            amount !== undefined && amount !== null && amount !== ''
+        )
+        .map(([categoryId, amount]) => ({
+          categoryId,
+          amount: Number(amount).toFixed(2),
+        }))
+        .filter((item) => Number(item.amount) > 0);
+
+      if (items.length === 0) {
+        message.error('至少需要填写一个分类的金额');
+        return;
+      }
+
+      setCreatingDraft(true);
+      setExecution(null);
+
+      const created = await apiAgentActions.createSnapshotDraft({
+        snapshotDate,
+        items,
+      });
+
+      setDraft(created);
+      message.success('草案已生成，请核对后确认');
+    } catch (err) {
+      if (err instanceof Error) {
+        message.error(err.message);
+      }
+    } finally {
+      setCreatingDraft(false);
+    }
   };
 
-  const cancelDraft = () => {
-    setActionStatus('CANCELLED');
-    message.info('草案已取消');
+  const confirmDraft = async () => {
+    if (!draft || confirming) return;
+
+    setConfirming(true);
+    try {
+      const result = await apiAgentActions.confirmAction(draft.actionId);
+      setExecution(result);
+
+      if (result.status === 'EXECUTED') {
+        refreshSnapshots();
+        message.success(result.displaySummary || '快照已创建');
+      } else {
+        message.warning(result.displaySummary || `操作未完成（${result.status}）`);
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        message.error(err.message);
+      }
+    } finally {
+      setConfirming(false);
+    }
   };
+
+  const resetDraft = () => {
+    setDraft(null);
+    setExecution(null);
+    form.resetFields();
+  };
+
+  const executedSnapshot = execution?.snapshot;
 
   return (
     <>
       <PageHeader
         title="AI 助手"
         subtitle="理解资产数据，并在你确认后协助完成操作"
-        extra={<Tag color="blue" icon={<RobotOutlined />}>界面演示</Tag>}
-      />
-
-      <Alert
-        showIcon
-        type="info"
-        icon={<DatabaseOutlined />}
-        message="当前为前端交互演示"
-        description="聊天回答、草案确认和取消仅用于展示界面流程，暂未连接模型、Agent 工具或真实资产写入接口。"
-        style={{ marginBottom: 16 }}
       />
 
       <Row gutter={[16, 16]}>
@@ -136,6 +186,15 @@ const Agent: React.FC = () => {
             title={<Space><RobotOutlined /> 与 WealthFlow 对话</Space>}
             styles={{ body: { padding: 0 } }}
           >
+            <Alert
+              showIcon
+              type="info"
+              icon={<RobotOutlined />}
+              message="聊天尚未接入大模型"
+              description="当前聊天回复为演示内容。右侧的草案生成与确认已连接真实接口。"
+              style={{ margin: 16, marginBottom: 0 }}
+            />
+
             <div
               style={{
                 height: 460,
@@ -199,65 +258,178 @@ const Agent: React.FC = () => {
         <Col xs={24} xl={9}>
           <Card
             title="待确认操作"
-            extra={<Badge status={actionConfig.badgeStatus} text={actionConfig.badge} />}
+            extra={
+              executed ? (
+                <Badge status="success" text="已执行" />
+              ) : draft ? (
+                <Badge status="warning" text="等待确认" />
+              ) : (
+                <Badge status="default" text="未生成" />
+              )
+            }
           >
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Space align="start">
-                {actionConfig.icon}
-                <div>
-                  <Text strong>创建资产快照</Text>
-                  <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
-                    {actionConfig.description}
-                  </Paragraph>
-                </div>
-              </Space>
-
-              <Card size="small" style={{ background: token.colorFillAlter }}>
-                <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                  <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Text type="secondary">快照日期</Text>
-                    <Text strong>2026-09-05</Text>
-                  </Space>
-                  <Divider style={{ margin: 0 }} />
-                  <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Text>现金</Text>
-                    <Text>¥30,000.00</Text>
-                  </Space>
-                  <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Text>股票</Text>
-                    <Text>¥180,000.00</Text>
-                  </Space>
-                  <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Text>基金</Text>
-                    <Text>¥120,000.00</Text>
-                  </Space>
-                  <Divider style={{ margin: 0 }} />
-                  <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Text strong>合计</Text>
-                    <Text strong style={{ fontSize: 16 }}>¥330,000.00</Text>
-                  </Space>
+            {executed && execution ? (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Space align="start">
+                  <CheckCircleOutlined style={{ color: token.colorSuccess }} />
+                  <div>
+                    <Text strong>创建资产快照</Text>
+                    <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
+                      {execution.displaySummary}
+                    </Paragraph>
+                  </div>
                 </Space>
-              </Card>
 
-              {actionStatus === 'PENDING' ? (
+                {executedSnapshot && (
+                  <Card size="small" style={{ background: token.colorFillAlter }}>
+                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                      <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <Text type="secondary">快照日期</Text>
+                        <Text strong>{executedSnapshot.snapshotDate}</Text>
+                      </Space>
+                      <Divider style={{ margin: 0 }} />
+                      {executedSnapshot.items.map((item) => (
+                        <Space
+                          key={item.categoryId}
+                          style={{ justifyContent: 'space-between', width: '100%' }}
+                        >
+                          <Text>{item.categoryName}</Text>
+                          <AmountText amount={item.amount} />
+                        </Space>
+                      ))}
+                      <Divider style={{ margin: 0 }} />
+                      <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <Text strong>合计</Text>
+                        <AmountText amount={executedSnapshot.totalAmount} style={{ fontSize: 16 }} />
+                      </Space>
+                    </Space>
+                  </Card>
+                )}
+
+                <Button block onClick={resetDraft}>
+                  重新生成草案
+                </Button>
+              </Space>
+            ) : draft ? (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Space align="start">
+                  <WarningOutlined style={{ color: token.colorWarning }} />
+                  <div>
+                    <Text strong>创建资产快照</Text>
+                    <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
+                      {draft.displaySummary}
+                    </Paragraph>
+                  </div>
+                </Space>
+
+                <Card size="small" style={{ background: token.colorFillAlter }}>
+                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                      <Text type="secondary">快照日期</Text>
+                      <Text strong>{draft.snapshotDate}</Text>
+                    </Space>
+                    <Divider style={{ margin: 0 }} />
+                    {draft.items.map((item) => (
+                      <Space
+                        key={item.categoryId}
+                        style={{ justifyContent: 'space-between', width: '100%' }}
+                      >
+                        <Text>{item.categoryName}</Text>
+                        <AmountText amount={item.amount} />
+                      </Space>
+                    ))}
+                    <Divider style={{ margin: 0 }} />
+                    <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                      <Text strong>合计</Text>
+                      <AmountText amount={draft.totalAmount} style={{ fontSize: 16 }} />
+                    </Space>
+                  </Space>
+                </Card>
+
                 <Space style={{ width: '100%' }}>
-                  <Button type="primary" block icon={<CheckCircleOutlined />} onClick={confirmDraft}>
+                  <Button
+                    type="primary"
+                    block
+                    icon={<CheckCircleOutlined />}
+                    loading={confirming}
+                    disabled={confirming}
+                    onClick={confirmDraft}
+                  >
                     确认创建
                   </Button>
-                  <Button block icon={<CloseCircleOutlined />} onClick={cancelDraft}>
+                  <Button block icon={<CloseCircleOutlined />} disabled>
                     取消
                   </Button>
                 </Space>
-              ) : (
-                <Button block onClick={() => setActionStatus('PENDING')}>
-                  重置演示草案
-                </Button>
-              )}
 
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                操作编号：demo-create-snapshot-001 · 有效期：10 分钟
-              </Text>
-            </Space>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  取消接口尚未提供，暂不支持取消草案；未确认的草案将在有效期后自动失效。
+                </Text>
+
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  操作编号：{draft.actionId} · 有效期至 {draft.expiresAt.replace('T', ' ')}
+                </Text>
+              </Space>
+            ) : (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Text type="secondary">
+                  暂无待确认草案。填写快照日期与各分类金额后生成草案，确认前不会写入任何资产数据。
+                </Text>
+
+                <Form form={form} layout="vertical">
+                  <Form.Item
+                    name="snapshotDate"
+                    label="快照日期"
+                    rules={[{ required: true, message: '请选择快照日期' }]}
+                  >
+                    <DatePicker
+                      style={{ width: '100%' }}
+                      disabledDate={(date) => date.isAfter(dayjs(), 'day')}
+                    />
+                  </Form.Item>
+
+                  {categories.length === 0 ? (
+                    <Alert
+                      showIcon
+                      type="info"
+                      message="暂无分类"
+                      description="请先在「分类管理」页面创建分类，再回来生成草案。"
+                    />
+                  ) : (
+                    <>
+                      <Divider style={{ margin: '4px 0 8px' }} />
+                      <Text type="secondary">各分类金额（留空或 0 不计入）</Text>
+                      {categories.map((category) => (
+                        <Form.Item
+                          key={category.id}
+                          name={['amounts', category.id]}
+                          label={category.name}
+                          style={{ marginBottom: 8 }}
+                        >
+                          <InputNumber
+                            style={{ width: '100%' }}
+                            min={0}
+                            precision={2}
+                            stringMode
+                            placeholder="金额（元）"
+                          />
+                        </Form.Item>
+                      ))}
+                    </>
+                  )}
+
+                  <Button
+                    type="primary"
+                    block
+                    icon={<FileAddOutlined />}
+                    loading={creatingDraft}
+                    onClick={generateDraft}
+                  >
+                    生成待确认草案
+                  </Button>
+                </Form>
+              </Space>
+            )}
           </Card>
 
           <Card title="Agent 工作方式" size="small" style={{ marginTop: 16 }}>

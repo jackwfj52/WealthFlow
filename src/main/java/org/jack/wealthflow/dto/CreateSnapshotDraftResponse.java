@@ -1,5 +1,7 @@
 package org.jack.wealthflow.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.jack.wealthflow.model.PendingActionStatus;
 import org.jack.wealthflow.model.PendingActionType;
 
@@ -18,6 +20,6 @@ public record CreateSnapshotDraftResponse(
         String expiresAt,
         LocalDate snapshotDate,
         List<SnapshotItem> items,
-        BigDecimal totalAmount
+        @JsonSerialize(using = ToStringSerializer.class) BigDecimal totalAmount
 ) {
 }
