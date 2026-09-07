@@ -113,6 +113,73 @@ class PendingActionServiceTest {
     }
 
     @Test
+    void shouldClaimPendingActionForExecution() {
+        PendingAction executing = new PendingAction();
+        executing.setId("action-claim");
+        executing.setStatus(PendingActionStatus.EXECUTING);
+
+        when(pendingActionMapper.claimForExecution(
+                eq("action-claim"),
+                anyString()
+        )).thenReturn(1);
+        when(pendingActionMapper.findById("action-claim"))
+                .thenReturn(executing);
+
+        PendingAction result =
+                pendingActionService.claimForExecution("action-claim");
+
+        assertEquals(PendingActionStatus.EXECUTING, result.getStatus());
+        verify(pendingActionMapper).claimForExecution(
+                eq("action-claim"),
+                anyString()
+        );
+    }
+
+    @Test
+    void shouldRejectActionAlreadyClaimedByAnotherRequest() {
+        PendingAction executing = new PendingAction();
+        executing.setId("action-race");
+        executing.setStatus(PendingActionStatus.EXECUTING);
+
+        when(pendingActionMapper.claimForExecution(
+                eq("action-race"),
+                anyString()
+        )).thenReturn(0);
+        when(pendingActionMapper.findById("action-race"))
+                .thenReturn(executing);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> pendingActionService.claimForExecution("action-race")
+        );
+
+        assertEquals(
+                ErrorCode.PENDING_ACTION_NOT_PENDING,
+                exception.getErrorCode()
+        );
+    }
+
+    @Test
+    void shouldMarkExecutingActionAsExecuted() {
+        PendingAction executing = new PendingAction();
+        executing.setId("action-executing");
+        executing.setStatus(PendingActionStatus.EXECUTING);
+
+        when(pendingActionMapper.findById("action-executing"))
+                .thenReturn(executing);
+        when(pendingActionMapper.markExecuted(
+                eq("action-executing"),
+                anyString()
+        )).thenReturn(1);
+
+        PendingAction result =
+                pendingActionService.markExecuted("action-executing");
+
+        assertEquals(PendingActionStatus.EXECUTED, result.getStatus());
+        assertNotNull(result.getExecutedAt());
+    }
+
+    @Test
     void shouldRejectNonPendingAction() {
         PendingAction pendingAction = new PendingAction();
         pendingAction.setId("action-3");

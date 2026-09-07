@@ -37,7 +37,11 @@ public class SnapshotActionExecutionServiceImpl implements SnapshotActionExecuti
     public PendingActionExecutionResponse executeCreateSnapshot(
             PendingAction pendingAction
     ) {
-        CreateSnapshotDraftRequest request = parsePayload(pendingAction);
+        PendingAction claimed = pendingActionService.claimForExecution(
+                pendingAction.getId()
+        );
+
+        CreateSnapshotDraftRequest request = parsePayload(claimed);
 
         AssetSnapshotResponse snapshot = assetSnapshotService.create(
                 request.snapshotDate(),
@@ -45,7 +49,7 @@ public class SnapshotActionExecutionServiceImpl implements SnapshotActionExecuti
         );
 
         PendingAction executed =
-                pendingActionService.markExecuted(pendingAction.getId());
+                pendingActionService.markExecuted(claimed.getId());
 
         return new PendingActionExecutionResponse(
                 executed.getId(),

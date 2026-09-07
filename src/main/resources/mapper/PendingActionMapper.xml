@@ -45,6 +45,23 @@
         WHERE id = #{id}
     </select>
 
+    <update id="claimForExecution">
+        UPDATE pending_action
+        SET status = 'EXECUTING'
+        WHERE id = #{id}
+          AND status = 'PENDING'
+          AND expires_at &gt; #{now}
+    </update>
+
+    <update id="markExecuted">
+        UPDATE pending_action
+        SET status = 'EXECUTED',
+            executed_at = #{executedAt},
+            failure_message = NULL
+        WHERE id = #{id}
+          AND status = 'EXECUTING'
+    </update>
+
     <update id="updateStatus">
         UPDATE pending_action
         SET

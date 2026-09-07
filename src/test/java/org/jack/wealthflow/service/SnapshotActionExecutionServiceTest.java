@@ -88,6 +88,12 @@ class SnapshotActionExecutionServiceTest {
         when(assetSnapshotService.create(eq(snapshotDate), anyList()))
                 .thenReturn(created);
 
+        PendingAction claimed = pendingAction(payloadJson);
+        claimed.setStatus(PendingActionStatus.EXECUTING);
+
+        when(pendingActionService.claimForExecution("action-1"))
+                .thenReturn(claimed);
+
         PendingAction executed = pendingAction(payloadJson);
         executed.setStatus(PendingActionStatus.EXECUTED);
 
@@ -110,9 +116,15 @@ class SnapshotActionExecutionServiceTest {
     void shouldRejectInvalidPayloadJson() {
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> executionService.executeCreateSnapshot(
-                        pendingAction("not-a-json{{{")
-                )
+                () -> {
+                    PendingAction pending = pendingAction("not-a-json{{{");
+                    PendingAction claimed = pendingAction("not-a-json{{{");
+                    claimed.setStatus(PendingActionStatus.EXECUTING);
+                    when(pendingActionService.claimForExecution("action-1"))
+                            .thenReturn(claimed);
+
+                    executionService.executeCreateSnapshot(pending);
+                }
         );
 
         assertEquals(
@@ -144,6 +156,11 @@ class SnapshotActionExecutionServiceTest {
                         ErrorCode.SNAPSHOT_DATE_EXISTS,
                         "该日期已经存在快照，请使用编辑功能"
                 ));
+
+        PendingAction claimed = pendingAction(payloadJson);
+        claimed.setStatus(PendingActionStatus.EXECUTING);
+        when(pendingActionService.claimForExecution("action-1"))
+                .thenReturn(claimed);
 
         assertThrows(
                 BusinessException.class,

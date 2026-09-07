@@ -111,16 +111,66 @@ public class PendingActionServiceImpl implements PendingActionService {
     }
 
     @Override
+    public PendingAction claimForExecution(String id) {
+        if (id == null || id.isBlank()) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.ID_NOT_EMPTY
+            );
+        }
+
+        String now = formatTime(LocalDateTime.now());
+        int rows = pendingActionMapper.claimForExecution(id, now);
+
+        if (rows == 1) {
+            return findById(id);
+        }
+
+        PendingAction current = findById(id);
+        if (current.getStatus() == PendingActionStatus.PENDING
+                && isExpired(current)) {
+            updateStatus(
+                    current.getId(),
+                    PendingActionStatus.EXPIRED,
+                    null,
+                    null
+            );
+
+            throw new BusinessException(
+                    ErrorCode.PENDING_ACTION_EXPIRED,
+                    MessageConstant.PENDING_ACTION_EXPIRED
+            );
+        }
+
+        throw new BusinessException(
+                ErrorCode.PENDING_ACTION_NOT_PENDING,
+                MessageConstant.PENDING_ACTION_NOT_PENDING
+        );
+    }
+
+    @Override
     public PendingAction markExecuted(String id) {
-        PendingAction pendingAction = getPendingById(id);
+        PendingAction pendingAction = findById(id);
+
+        if (pendingAction.getStatus() != PendingActionStatus.EXECUTING) {
+            throw new BusinessException(
+                    ErrorCode.PENDING_ACTION_NOT_PENDING,
+                    MessageConstant.PENDING_ACTION_NOT_PENDING
+            );
+        }
 
         String executedAt = formatTime(LocalDateTime.now());
-        updateStatus(
+        int rows = pendingActionMapper.markExecuted(
                 pendingAction.getId(),
-                PendingActionStatus.EXECUTED,
-                executedAt,
-                null
+                executedAt
         );
+
+        if (rows != 1) {
+            throw new BusinessException(
+                    ErrorCode.PENDING_ACTION_NOT_PENDING,
+                    MessageConstant.PENDING_ACTION_NOT_PENDING
+            );
+        }
 
         pendingAction.setStatus(PendingActionStatus.EXECUTED);
         pendingAction.setExecutedAt(executedAt);

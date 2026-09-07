@@ -16,6 +16,12 @@ public interface PendingActionService {
     PendingAction getPendingById(String id);
 
     /**
+     * 将未过期的 PENDING 操作原子更新为 EXECUTING。
+     * 同一个操作只能被一个执行请求领取。
+     */
+    PendingAction claimForExecution(String id);
+
+    /**
      * 将已完成的待确认操作标记为已执行。执行器只能在实际写入成功后调用该方法。
      */
     PendingAction markExecuted(String id);
