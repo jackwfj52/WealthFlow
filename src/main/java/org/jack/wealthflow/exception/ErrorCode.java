@@ -14,8 +14,14 @@ public enum ErrorCode {
     PENDING_ACTION_EXPIRED(40905, 409, "该操作已过期，请重新发起"),
     PENDING_ACTION_TYPE_MISMATCH(40906, 409, "待确认操作类型不匹配"),
 
+    PROVIDER_CONFIG_NOT_FOUND(40404, 404, "AI 提供商配置不存在"),
+    PROVIDER_ID_EXISTS(40907, 409, "该提供商已配置"),
+
     SERVER_ERROR(50000, 500, "服务器内部错误"),
-    SNAPSHOT_DRAFT_PARSE_FAILED(50001, 500, "快照草案数据已损坏，无法执行");
+    SNAPSHOT_DRAFT_PARSE_FAILED(50001, 500, "快照草案数据已损坏，无法执行"),
+    DPAPI_UNAVAILABLE(50002, 500, "Windows 密钥保护不可用，无法安全保存 API Key"),
+    DPAPI_ENCRYPT_FAILED(50003, 500, "API Key 加密失败，配置未保存"),
+    DPAPI_DECRYPT_FAILED(50004, 500, "API Key 解密失败，无法读取该配置");
 
     private final int code;
     private final int httpStatus;
