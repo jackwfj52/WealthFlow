@@ -7,6 +7,16 @@ export function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** 按比例向黑色混合（ratio=1 为纯黑），用于生成侧边栏等深色派生色 */
+export function darkenColor(hex: string, ratio: number): string {
+  const h = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(h) || ratio < 0 || ratio > 1) return hex;
+  const r = Math.round(parseInt(h.slice(0, 2), 16) * (1 - ratio));
+  const g = Math.round(parseInt(h.slice(2, 4), 16) * (1 - ratio));
+  const b = Math.round(parseInt(h.slice(4, 6), 16) * (1 - ratio));
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
 /** 默认分类调色板（antd 经典色板） */
 export const DEFAULT_CATEGORY_COLORS = [
   '#1677ff', '#52c41a', '#faad14', '#f5222d', '#722ed1',

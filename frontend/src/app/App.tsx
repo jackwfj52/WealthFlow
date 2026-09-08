@@ -13,6 +13,7 @@ import { AppProvider, useApp } from './storage';
 import { SettingsProvider, useSettings } from './settings';
 import AppRouter from './router';
 import ErrorState from '../components/ErrorState';
+import { darkenColor } from '../utils/color';
 
 const { Sider, Content } = Layout;
 
@@ -30,6 +31,10 @@ const AppShell: React.FC = () => {
   const location = useLocation();
   const { error, reload } = useApp();
   const { token } = antdTheme.useToken();
+  const { settings } = useSettings();
+
+  // 侧边栏用主题色的深色派生色，随主题色联动（antd 深色 Sider/Menu 背景不随 colorPrimary 变化）
+  const siderBg = darkenColor(settings.themeColor, 0.84);
 
   const selectedKey = menuItems
     .map((m) => m.key)
@@ -40,7 +45,7 @@ const AppShell: React.FC = () => {
       <Sider
         breakpoint="lg"
         collapsedWidth={64}
-        style={{ background: '#001529' }}
+        style={{ background: siderBg }}
       >
         <div
           style={{
@@ -64,6 +69,7 @@ const AppShell: React.FC = () => {
           selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          style={{ background: 'transparent' }}
         />
       </Sider>
       <Layout>
