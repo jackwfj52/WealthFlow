@@ -40,6 +40,7 @@ import {
   type SkippedEntry,
   type RestoreMode,
 } from '../snapshots/importExport';
+import AiProviderSettings from './aiProviders';
 
 const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -240,6 +241,8 @@ const Settings: React.FC = () => {
           </Typography.Paragraph>
         </Space>
       </Card>
+
+      <AiProviderSettings />
 
       <Card title="数据管理" style={{ maxWidth: 600 }}>
         {USE_MOCK ? (
