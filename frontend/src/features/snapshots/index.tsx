@@ -433,10 +433,10 @@ const Snapshots: React.FC = () => {
         subtitle="每日资产更新按新增快照处理，不会覆盖历史数据"
         extra={
           <Space>
-            <Button icon={<UploadOutlined />} onClick={openImport}>
+            <Button icon={<DownloadOutlined />} onClick={openImport}>
               导入 JSON
             </Button>
-            <Button icon={<DownloadOutlined />} onClick={handleExport}>
+            <Button icon={<UploadOutlined />} onClick={handleExport}>
               导出 JSON
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openAddDrawer}>
