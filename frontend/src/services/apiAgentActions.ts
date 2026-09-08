@@ -56,6 +56,15 @@ export interface PendingActionExecutionResult {
   snapshot: AssetSnapshot | null;
 }
 
+/** 取消待确认操作后的响应，不包含草案的内部 payload。 */
+export interface PendingActionCancellationResult {
+  actionId: string;
+  actionType: PendingActionType;
+  status: PendingActionStatus;
+  displaySummary: string;
+  expiresAt: string;
+}
+
 export const apiAgentActions = {
   /** 创建待确认的快照草案（服务端校验并生成展示文案） */
   async createSnapshotDraft(
@@ -73,6 +82,17 @@ export const apiAgentActions = {
   ): Promise<PendingActionExecutionResult> {
     return apiClient.post<PendingActionExecutionResult>(
       `/agent/actions/${actionId}/confirm`,
+      {}
+    );
+  },
+
+  /** 取消仍处于 PENDING 状态的待确认操作。 */
+  async cancelAction(
+    actionId: string
+  ): Promise<PendingActionCancellationResult> {
+    // apiClient.post 需要 body；后端取消接口不使用请求体。
+    return apiClient.post<PendingActionCancellationResult>(
+      `/agent/actions/${actionId}/cancel`,
       {}
     );
   },
