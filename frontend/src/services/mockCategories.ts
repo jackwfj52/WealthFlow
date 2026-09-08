@@ -6,6 +6,7 @@
 import type { AssetCategory, AssetSnapshot } from '../types/domain';
 import { generateId } from './mockData';
 import { today } from '../utils/date';
+import { isValidHexColor, pickUnusedCategoryColor } from '../utils/color';
 import type { CategoryService } from './types';
 
 const STORAGE_KEY = 'wealthflow_categories';
@@ -41,6 +42,17 @@ function readSnapshots(): AssetSnapshot[] {
 
 function writeSnapshots(snapshots: AssetSnapshot[]): void {
   localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots));
+}
+
+/** 校验颜色格式，未提供或空白返回 undefined，格式错误抛异常 */
+function normalizeColor(color: unknown): string | undefined {
+  if (typeof color !== 'string') return undefined;
+  const trimmed = color.trim();
+  if (!trimmed) return undefined;
+  if (!isValidHexColor(trimmed)) {
+    throw new Error('颜色格式无效，需为 #RRGGBB 格式');
+  }
+  return trimmed.toLowerCase();
 }
 
 function validateName(name: unknown, categories: AssetCategory[], excludeId?: string): string {
@@ -79,12 +91,13 @@ export const categoryService: CategoryService = {
    * 新增分类
    * @throws 名称重复、空名称、纯空格时抛出错误
    */
-  async create(name: string): Promise<AssetCategory> {
+  async create(name: string, color?: string): Promise<AssetCategory> {
     const categories = read();
     const validName = validateName(name, categories);
     const category: AssetCategory = {
       id: generateId(),
       name: validName,
+      color: normalizeColor(color) ?? pickUnusedCategoryColor(categories),
       createdAt: today(),
     };
     categories.push(category);
@@ -100,7 +113,7 @@ export const categoryService: CategoryService = {
    *
    * @throws 名称重复、空名称、纯空格时抛出错误
    */
-  async update(id: string, name: string): Promise<AssetCategory | undefined> {
+  async update(id: string, name: string, color?: string): Promise<AssetCategory | undefined> {
     if (!id) return undefined;
     const categories = read();
     const idx = categories.findIndex((c) => c.id === id);
@@ -109,7 +122,11 @@ export const categoryService: CategoryService = {
     const oldName = categories[idx].name;
     const validName = validateName(name, categories, id);
 
-    categories[idx] = { ...categories[idx], name: validName };
+    categories[idx] = {
+      ...categories[idx],
+      name: validName,
+      color: normalizeColor(color) ?? categories[idx].color,
+    };
     write(categories);
 
     // 同步更新所有快照中的 categoryName

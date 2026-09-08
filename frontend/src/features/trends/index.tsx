@@ -36,7 +36,7 @@ import {
 } from '../../utils/snapshot';
 import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
 import { isValidDateRange } from '../../utils/date';
-import { hexToRgba } from '../../utils/color';
+import { hexToRgba, getCategoryColor } from '../../utils/color';
 
 dayjs.extend(customParseFormat);
 
@@ -47,14 +47,6 @@ const RANGE_PRESETS: { label: string; days: number }[] = [
   { label: '近一年', days: 365 },
   { label: '近十年', days: 3650 },
 ];
-
-const COLORS = [
-  '#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1',
-  '#13c2c2', '#eb2f96', '#fa8c16', '#2f54eb', '#a0d911',
-];
-
-// 总资产曲线专用色（火山橙），避开 COLORS 调色板，防止图例颜色与分类重复
-const TOTAL_COLOR = '#fa541c';
 
 const Trends: React.FC = () => {
   const { snapshots, loading } = useSnapshots();
@@ -92,7 +84,7 @@ const Trends: React.FC = () => {
         const rawData = getCategoryTrendData(snapshots, catId, dateRange[0], dateRange[1]);
         return {
           name: cat?.name ?? catId,
-          color: COLORS[idx % COLORS.length],
+          color: getCategoryColor(cat, idx),
           data: rawData.map((d) => ({
             date: d.date,
             value: parseFloat(d.amount),
@@ -110,7 +102,7 @@ const Trends: React.FC = () => {
       );
       return {
         name: cat?.name ?? catId,
-        color: COLORS[idx % COLORS.length],
+        color: getCategoryColor(cat, idx),
         data: aggregated.map((d) => ({
           date: d.label,
           value: parseFloat(d.totalAmount),
@@ -246,13 +238,13 @@ const Trends: React.FC = () => {
                     type: 'linear',
                     x: 0, y: 0, x2: 0, y2: 1,
                     colorStops: [
-                      { offset: 0, color: hexToRgba(TOTAL_COLOR, 0.3) },
-                      { offset: 1, color: hexToRgba(TOTAL_COLOR, 0.02) },
+                      { offset: 0, color: hexToRgba(token.colorPrimary, 0.3) },
+                      { offset: 1, color: hexToRgba(token.colorPrimary, 0.02) },
                     ],
                   },
                 },
-                lineStyle: { color: TOTAL_COLOR, width: 3 },
-                itemStyle: { color: TOTAL_COLOR },
+                lineStyle: { color: token.colorPrimary, width: 3 },
+                itemStyle: { color: token.colorPrimary },
               },
             ]
           : []),

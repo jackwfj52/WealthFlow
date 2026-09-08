@@ -9,14 +9,14 @@ export function generateId(): string {
 
 /** 初始分类模板 */
 export const SEED_CATEGORIES: AssetCategory[] = [
-  { id: 'cat-cash', name: '现金', createdAt: '2026-01-01' },
-  { id: 'cat-deposit', name: '存款', createdAt: '2026-01-01' },
-  { id: 'cat-stock', name: '股票', createdAt: '2026-01-01' },
-  { id: 'cat-fund', name: '基金', createdAt: '2026-01-01' },
-  { id: 'cat-wealth', name: '理财', createdAt: '2026-01-01' },
-  { id: 'cat-insurance', name: '保险', createdAt: '2026-01-01' },
-  { id: 'cat-house', name: '房产', createdAt: '2026-01-01' },
-  { id: 'cat-other', name: '其他', createdAt: '2026-01-01' },
+  { id: 'cat-cash', name: '现金', color: '#1677ff', createdAt: '2026-01-01' },
+  { id: 'cat-deposit', name: '存款', color: '#13c2c2', createdAt: '2026-01-01' },
+  { id: 'cat-stock', name: '股票', color: '#f5222d', createdAt: '2026-01-01' },
+  { id: 'cat-fund', name: '基金', color: '#722ed1', createdAt: '2026-01-01' },
+  { id: 'cat-wealth', name: '理财', color: '#faad14', createdAt: '2026-01-01' },
+  { id: 'cat-insurance', name: '保险', color: '#2f54eb', createdAt: '2026-01-01' },
+  { id: 'cat-house', name: '房产', color: '#eb2f96', createdAt: '2026-01-01' },
+  { id: 'cat-other', name: '其他', color: '#8c8c8c', createdAt: '2026-01-01' },
 ];
 
 /**

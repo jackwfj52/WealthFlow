@@ -23,7 +23,7 @@ import {
   type Aggregation,
 } from '../../utils/snapshot';
 import { formatCurrency, pickAmountUnit, formatAxisAmount } from '../../utils/amount';
-import { hexToRgba } from '../../utils/color';
+import { hexToRgba, getCategoryColor } from '../../utils/color';
 
 const TREND_RANGES: { label: string; days: number }[] = [
   { label: '近7天', days: 7 },
@@ -151,14 +151,18 @@ const Dashboard: React.FC = () => {
           emphasis: {
             label: { show: true, fontSize: 14, fontWeight: 'bold', color: token.colorText },
           },
-          data: categoryPieData.map((c) => ({
-            name: c.categoryName,
-            value: parseFloat(c.amount),
-          })),
+          data: categoryPieData.map((c, idx) => {
+            const cat = categories.find((x) => x.id === c.categoryId);
+            return {
+              name: c.categoryName,
+              value: parseFloat(c.amount),
+              itemStyle: { color: getCategoryColor(cat, idx) },
+            };
+          }),
         },
       ],
     };
-  }, [categoryPieData, settings, token]);
+  }, [categoryPieData, categories, settings, token]);
 
   // --- trend line option ---
   const trendOption = useMemo(() => {
@@ -222,7 +226,29 @@ const Dashboard: React.FC = () => {
   // --- category table columns ---
   // 三列等宽：不设宽度，由 fixed 布局平均分配
   const categoryColumns = [
-    { title: '分类', dataIndex: 'categoryName', key: 'categoryName' },
+    {
+      title: '分类',
+      dataIndex: 'categoryName',
+      key: 'categoryName',
+      render: (v: string, record: { categoryId: string }, index: number) => {
+        const cat = categories.find((x) => x.id === record.categoryId);
+        const color = getCategoryColor(cat, index);
+        return (
+          <Space size={8}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: color,
+              }}
+            />
+            {v}
+          </Space>
+        );
+      },
+    },
     {
       title: '金额',
       dataIndex: 'amount',

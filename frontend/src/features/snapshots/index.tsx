@@ -49,6 +49,7 @@ import { useSnapshots, useCategories } from '../../app/storage';
 import { snapshotService, categoryService } from '../../services';
 import { isValidAmount } from '../../utils/amount';
 import { isValidDateOnly, isValidDateRange } from '../../utils/date';
+import { getCategoryColor } from '../../utils/color';
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
 import {
   parseImportJson,
@@ -403,7 +404,23 @@ const Snapshots: React.FC = () => {
     },
   ];
 
-  const categoryOptions = categories.map((c) => ({ label: c.name, value: c.id }));
+  const categoryOptions = categories.map((c, idx) => ({
+    label: (
+      <Space size={6}>
+        <span
+          style={{
+            display: 'inline-block',
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            background: getCategoryColor(c, idx),
+          }}
+        />
+        {c.name}
+      </Space>
+    ),
+    value: c.id,
+  }));
 
   if (loading) {
     return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;

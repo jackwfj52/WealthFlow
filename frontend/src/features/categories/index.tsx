@@ -18,6 +18,8 @@ import {
   Popconfirm,
   message,
   Spin,
+  ColorPicker,
+  Typography,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -26,6 +28,7 @@ import EmptyState from '../../components/EmptyState';
 import { useCategories, useSnapshots } from '../../app/storage';
 import { categoryService } from '../../services';
 import type { AssetCategory } from '../../types/domain';
+import { DEFAULT_CATEGORY_COLORS, getCategoryColor, pickUnusedCategoryColor } from '../../utils/color';
 
 const Categories: React.FC = () => {
   const { categories, refresh: refreshCategories } = useCategories();
@@ -52,17 +55,21 @@ const Categories: React.FC = () => {
     setModalMode('add');
     setEditingCategory(null);
     form.resetFields();
+    form.setFieldsValue({ color: pickUnusedCategoryColor(categories) });
     setModalOpen(true);
-  }, [form]);
+  }, [form, categories]);
 
   const openEditModal = useCallback(
     (record: AssetCategory) => {
       setModalMode('edit');
       setEditingCategory(record);
-      form.setFieldsValue({ name: record.name });
+      form.setFieldsValue({
+        name: record.name,
+        color: getCategoryColor(record, categories.indexOf(record)),
+      });
       setModalOpen(true);
     },
-    [form]
+    [form, categories]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -78,11 +85,11 @@ const Categories: React.FC = () => {
       }
 
       if (modalMode === 'add') {
-        await categoryService.create(name);
+        await categoryService.create(name, values.color as string | undefined);
         message.success('分类已新增');
       } else {
         if (editingCategory) {
-          await categoryService.update(editingCategory.id, name);
+          await categoryService.update(editingCategory.id, name, values.color as string | undefined);
           message.success('分类已更新');
           // 重命名可能影响了快照中的 categoryName，同步刷新
           refreshSnapshots();
@@ -116,6 +123,30 @@ const Categories: React.FC = () => {
 
   const columns: ColumnsType<AssetCategory> = [
     { title: '分类名称', dataIndex: 'name', key: 'name' },
+    {
+      title: '颜色',
+      dataIndex: 'color',
+      key: 'color',
+      width: 120,
+      render: (_, record, index) => {
+        const color = getCategoryColor(record, index);
+        return (
+          <Space size={8}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 14,
+                height: 14,
+                borderRadius: 4,
+                background: color,
+                border: '1px solid rgba(0, 0, 0, 0.15)',
+              }}
+            />
+            <Typography.Text type="secondary">{color}</Typography.Text>
+          </Space>
+        );
+      },
+    },
     { title: '创建日期', dataIndex: 'createdAt', key: 'createdAt', width: 140 },
     {
       title: '快照使用次数',
@@ -223,6 +254,16 @@ const Categories: React.FC = () => {
             ]}
           >
             <Input placeholder="请输入分类名称" />
+          </Form.Item>
+          <Form.Item
+            name="color"
+            label="分类颜色"
+            normalize={(c) => (c ? c.toHexString() : undefined)}
+          >
+            <ColorPicker
+              presets={[{ label: '推荐色', colors: DEFAULT_CATEGORY_COLORS }]}
+              showText
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -2,6 +2,8 @@
 export interface AssetCategory {
   id: string;
   name: string;
+  /** 分类颜色 #RRGGBB，缺失时由 getCategoryColor 按调色板回退 */
+  color?: string;
   createdAt: string; // YYYY-MM-DD
 }
 

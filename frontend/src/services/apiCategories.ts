@@ -9,11 +9,17 @@ import type { CategoryService } from './types';
 interface CategoryPayload {
   id: string;
   name: string;
+  color: string | null;
   createdAt: string | null;
 }
 
 function toDomain(category: CategoryPayload): AssetCategory {
-  return { id: category.id, name: category.name, createdAt: category.createdAt ?? '' };
+  return {
+    id: category.id,
+    name: category.name,
+    color: category.color ?? undefined,
+    createdAt: category.createdAt ?? '',
+  };
 }
 
 export const apiCategoryService: CategoryService = {
@@ -32,14 +38,14 @@ export const apiCategoryService: CategoryService = {
     }
   },
 
-  async create(name: string): Promise<AssetCategory> {
-    return toDomain(await apiClient.post<CategoryPayload>('/categories', { name }));
+  async create(name: string, color?: string): Promise<AssetCategory> {
+    return toDomain(await apiClient.post<CategoryPayload>('/categories', { name, color }));
   },
 
-  async update(id: string, name: string): Promise<AssetCategory | undefined> {
+  async update(id: string, name: string, color?: string): Promise<AssetCategory | undefined> {
     if (!id) return undefined;
     try {
-      return toDomain(await apiClient.patch<CategoryPayload>(`/categories/${id}`, { name }));
+      return toDomain(await apiClient.patch<CategoryPayload>(`/categories/${id}`, { name, color }));
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) return undefined;
       throw err;

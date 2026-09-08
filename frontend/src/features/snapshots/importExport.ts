@@ -22,6 +22,7 @@
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
 import { isValidDateOnly } from '../../utils/date';
 import { isValidAmount } from '../../utils/amount';
+import { isValidHexColor } from '../../utils/color';
 import type { CategoryService, SnapshotService, SystemService } from '../../services/types';
 
 export interface ImportedItem {
@@ -246,6 +247,7 @@ export async function runImport(
 
 export interface BackupCategory {
   name: string;
+  color?: string;
 }
 
 export interface BackupFile {
@@ -270,14 +272,16 @@ export interface BackupRestoreReport {
 
 /** 生成全量备份 JSON（分类 + 快照），快照按日期升序 */
 export function buildBackupJson(
-  categories: { name: string }[],
+  categories: { name: string; color?: string }[],
   snapshots: AssetSnapshot[]
 ): string {
   const backup: BackupFile = {
     type: 'wealthflow-backup',
     version: 1,
     exportedAt: new Date().toISOString(),
-    categories: categories.map((c) => ({ name: c.name })),
+    categories: categories.map((c) =>
+      c.color ? { name: c.name, color: c.color } : { name: c.name }
+    ),
     snapshots: [...snapshots]
       .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))
       .map((s) => ({
@@ -317,14 +321,18 @@ export function parseBackupJson(text: string): BackupParseResult {
 
   const categories: BackupCategory[] = [];
   for (const entry of e.categories ?? []) {
+    const obj = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : null;
     const name =
       typeof entry === 'string'
         ? entry.trim()
-        : entry && typeof entry === 'object'
-          ? String((entry as Record<string, unknown>).name ?? '').trim()
-          : '';
+        : String(obj?.name ?? '').trim();
+    const rawColor = obj?.color;
+    const color =
+      typeof rawColor === 'string' && isValidHexColor(rawColor.trim())
+        ? rawColor.trim().toLowerCase()
+        : undefined;
     if (name && !categories.some((c) => c.name === name)) {
-      categories.push({ name });
+      categories.push(color ? { name, color } : { name });
     }
   }
 
@@ -378,7 +386,7 @@ export async function runBackupRestore(
 
   for (const cat of backup.categories) {
     if (!nameToId.has(cat.name)) {
-      const created = await categoryService.create(cat.name);
+      const created = await categoryService.create(cat.name, cat.color);
       nameToId.set(cat.name, created.id);
       report.createdCategories += 1;
     }

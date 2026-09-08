@@ -9,8 +9,8 @@ import type { AssetCategory, AssetSnapshot, SnapshotItem } from '../types/domain
 export interface CategoryService {
   getAll(): Promise<AssetCategory[]>;
   getById(id: string): Promise<AssetCategory | undefined>;
-  create(name: string): Promise<AssetCategory>;
-  update(id: string, name: string): Promise<AssetCategory | undefined>;
+  create(name: string, color?: string): Promise<AssetCategory>;
+  update(id: string, name: string, color?: string): Promise<AssetCategory | undefined>;
   delete(id: string): Promise<boolean>;
   /** 重置数据（仅 Mock 模式支持） */
   reset(categories: AssetCategory[]): Promise<void>;
