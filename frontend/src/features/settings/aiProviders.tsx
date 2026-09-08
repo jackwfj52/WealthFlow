@@ -38,24 +38,6 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
     defaultBaseUrl: 'https://api.openai.com/v1',
     defaultModel: 'gpt-4o-mini',
   },
-  {
-    id: 'deepseek',
-    label: 'DeepSeek',
-    defaultBaseUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
-  },
-  {
-    id: 'qwen',
-    label: '千问',
-    defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    defaultModel: 'qwen-plus',
-  },
-  {
-    id: 'kimi',
-    label: 'Kimi',
-    defaultBaseUrl: 'https://api.moonshot.cn/v1',
-    defaultModel: 'moonshot-v1-8k',
-  },
 ];
 
 const CUSTOM_TYPE = 'custom';
@@ -419,7 +401,8 @@ const AiProviderSettings: React.FC = () => {
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
           API Key 使用 Windows DPAPI 加密后保存在本地数据库，任何接口都不会
-          返回完整 Key，仅显示掩码。
+          返回完整 Key，仅显示掩码。内置 OpenAI 示例，其他兼容 OpenAI 协议的
+          提供商请通过「新增自定义配置」添加。
         </Typography.Paragraph>
 
         <List
