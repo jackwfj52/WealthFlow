@@ -11,6 +11,8 @@ import org.jack.wealthflow.exception.ErrorCode;
 import org.jack.wealthflow.exception.GlobalExceptionHandler;
 import org.jack.wealthflow.model.PendingActionStatus;
 import org.jack.wealthflow.model.PendingActionType;
+import org.jack.wealthflow.model.PendingAction;
+import org.jack.wealthflow.service.PendingActionService;
 import org.jack.wealthflow.service.SnapshotActionConfirmationService;
 import org.jack.wealthflow.service.SnapshotDraftService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +44,9 @@ class AgentActionControllerTest {
     @Mock
     private SnapshotActionConfirmationService snapshotActionConfirmationService;
 
+    @Mock
+    private PendingActionService pendingActionService;
+
     /**
      * 与运行时 Spring Boot 注入的 ObjectMapper 保持一致的日期序列化
      * （ISO 字符串而非时间戳数组）。
@@ -57,7 +62,8 @@ class AgentActionControllerTest {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new AgentActionController(
                         snapshotDraftService,
-                        snapshotActionConfirmationService
+                        snapshotActionConfirmationService,
+                        pendingActionService
                 ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(
@@ -125,6 +131,40 @@ class AgentActionControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.actionId").value("action-1"))
                 .andExpect(jsonPath("$.data.status").value("EXECUTED"));
+    }
+
+    @Test
+    void shouldCancelActionAndReturn200() throws Exception {
+        PendingAction cancelled = new PendingAction();
+        cancelled.setId("action-1");
+        cancelled.setActionType(PendingActionType.CREATE_SNAPSHOT);
+        cancelled.setStatus(PendingActionStatus.CANCELLED);
+        cancelled.setDisplaySummary("将创建 2026-08-31 的资产快照，共 1 项，合计 ¥30000.00");
+        cancelled.setExpiresAt("2026-08-31T10:00:00");
+
+        when(pendingActionService.cancel("action-1"))
+                .thenReturn(cancelled);
+
+        mockMvc.perform(post("/api/v1/agent/actions/action-1/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.actionId").value("action-1"))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenCancelActionDoesNotExist() throws Exception {
+        when(pendingActionService.cancel("missing"))
+                .thenThrow(new BusinessException(
+                        ErrorCode.PENDING_ACTION_NOT_FOUND,
+                        ErrorCode.PENDING_ACTION_NOT_FOUND.getMessage()
+                ));
+
+        mockMvc.perform(post("/api/v1/agent/actions/missing/cancel"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value(ErrorCode.PENDING_ACTION_NOT_FOUND.getCode()))
+                .andExpect(jsonPath("$.message").value("待确认操作不存在"));
     }
 
     @Test

@@ -4,7 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.dto.ApiResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
 import org.jack.wealthflow.dto.CreateSnapshotDraftResponse;
+import org.jack.wealthflow.dto.PendingActionCancellationResponse;
 import org.jack.wealthflow.dto.PendingActionExecutionResponse;
+import org.jack.wealthflow.model.PendingAction;
+import org.jack.wealthflow.service.PendingActionService;
 import org.jack.wealthflow.service.SnapshotActionConfirmationService;
 import org.jack.wealthflow.service.SnapshotDraftService;
 import org.springframework.http.HttpStatus;
@@ -28,6 +31,7 @@ public class AgentActionController {
 
     private final SnapshotDraftService snapshotDraftService;
     private final SnapshotActionConfirmationService snapshotActionConfirmationService;
+    private final PendingActionService pendingActionService;
 
     @PostMapping("/snapshot-drafts")
     public ResponseEntity<ApiResponse<CreateSnapshotDraftResponse>> createSnapshotDraft(
@@ -49,5 +53,24 @@ public class AgentActionController {
                 snapshotActionConfirmationService.confirmCreateSnapshot(actionId);
 
         return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @PostMapping("/{actionId}/cancel")
+    public ResponseEntity<ApiResponse<PendingActionCancellationResponse>> cancel(
+            @PathVariable String actionId
+    ) {
+        // 已有 Service 会检查：操作存在、仍处于 PENDING、且尚未过期。
+        PendingAction cancelled = pendingActionService.cancel(actionId);
+
+        PendingActionCancellationResponse response =
+                new PendingActionCancellationResponse(
+                        cancelled.getId(),
+                        cancelled.getActionType(),
+                        cancelled.getStatus(),
+                        cancelled.getDisplaySummary(),
+                        cancelled.getExpiresAt()
+                );
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
