@@ -42,3 +42,15 @@ CREATE TABLE IF NOT EXISTS pending_action (
 
 CREATE INDEX IF NOT EXISTS idx_pending_action_status_expires_at
     ON pending_action(status, expires_at);
+
+CREATE TABLE IF NOT EXISTS ai_provider_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    protocol TEXT NOT NULL,
+    base_url TEXT NOT NULL,
+    model TEXT NOT NULL,
+    encrypted_api_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
