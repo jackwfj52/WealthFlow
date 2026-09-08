@@ -58,6 +58,7 @@ public class AssetCategoryController {
     ) {
         AssetCategory category = new AssetCategory();
         category.setName(request.name());
+        category.setColor(request.color());
 
         AssetCategory saved = assetCategoryService.insert(category);
 
@@ -74,6 +75,7 @@ public class AssetCategoryController {
         AssetCategory category = new AssetCategory();
         category.setId(id);
         category.setName(request.name());
+        category.setColor(request.color());
 
         assetCategoryService.update(category);
 

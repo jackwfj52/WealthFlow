@@ -8,5 +8,6 @@ import java.time.LocalDate;
 public class AssetCategory {
     private Long id;
     private String name;
+    private String color;
     private LocalDate createdDate;
 }

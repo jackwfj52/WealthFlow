@@ -4,6 +4,7 @@ public class MessageConstant {
 
 
     public static final String ASSET_CATEGORY_ADD_FAILED = "资产分类新增失败";
+    public static final String COLOR_INVALID = "颜色格式无效，需为 #RRGGBB 格式";
     public static final String ID_NOT_EMPTY = "ID不能为空";
     public static final String NAME_NOT_EMPTY = "名称不能为空";
     public static final String NAME_NOT_TOO_LONG = "名称不能超过20个字符";

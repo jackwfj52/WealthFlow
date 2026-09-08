@@ -11,16 +11,49 @@ import org.jack.wealthflow.exception.ErrorCode;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AssetCategoryServiceImpl implements AssetCategoryService {
+
+    private static final List<String> DEFAULT_COLORS = List.of(
+            "#1677ff", "#52c41a", "#faad14", "#f5222d", "#722ed1",
+            "#13c2c2", "#eb2f96", "#fa8c16", "#2f54eb", "#a0d911");
 
     private final AssetCategoryMapper assetCategoryMapper;
 
     // 规范化资产类别名称，去除前后空格
     private String normalizeName(String name) {
         return name == null ? null : name.trim();
+    }
+
+    // 校验并规范化颜色：#RRGGBB，空白视为未设置
+    private String normalizeColor(String color) {
+        if (color == null) return null;
+        String trimmed = color.trim();
+        if (trimmed.isEmpty()) return null;
+        if (!trimmed.matches("^#[0-9a-fA-F]{6}$")) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.COLOR_INVALID
+            );
+        }
+        return trimmed.toLowerCase();
+    }
+
+    // 从默认调色板中挑一个未被使用的颜色
+    private String pickDefaultColor() {
+        Set<String> used = assetCategoryMapper.findAll().stream()
+                .map(AssetCategory::getColor)
+                .filter(c -> c != null)
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+        return DEFAULT_COLORS.stream()
+                .filter(c -> !used.contains(c))
+                .findFirst()
+                .orElse(DEFAULT_COLORS.get(0));
     }
 
     /**
@@ -76,8 +109,10 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
             );
         }
 
-        // 设置名称和创建日期
+        // 设置名称、颜色和创建日期，未指定颜色时自动分配
         category.setName(name);
+        String color = normalizeColor(category.getColor());
+        category.setColor(color == null ? pickDefaultColor() : color);
         category.setCreatedDate(LocalDate.now());
 
         int rows = assetCategoryMapper.insert(category);
@@ -133,8 +168,10 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
             );
         }
 
-        // 设置名称和创建日期
+        // 设置名称、颜色和创建日期；颜色未传时沿用原颜色
         category.setName(name);
+        String color = normalizeColor(category.getColor());
+        category.setColor(color == null ? existing.getColor() : color);
         category.setCreatedDate(existing.getCreatedDate());
 
         int rows = assetCategoryMapper.update(category);

@@ -7,8 +7,8 @@
 
     <insert id="insert">
         <!-- SQLite 不依赖 JDBC generated keys，直接读取本次连接的自增主键 -->
-        INSERT INTO asset_category (name, created_date)
-        VALUES (#{name}, #{createdDate})
+        INSERT INTO asset_category (name, color, created_date)
+        VALUES (#{name}, #{color}, #{createdDate})
         <selectKey keyProperty="id" resultType="long" order="AFTER">
             SELECT last_insert_rowid()
         </selectKey>
@@ -16,7 +16,7 @@
 
     <update id="update">
         UPDATE asset_category
-        SET name = #{name}, created_date = #{createdDate}
+        SET name = #{name}, color = #{color}, created_date = #{createdDate}
         WHERE id = #{id}
     </update>
 
@@ -31,6 +31,7 @@
         SELECT
         id,
         name,
+        color,
         created_date AS createdDate
         FROM asset_category
         ORDER BY id
@@ -40,6 +41,7 @@
         SELECT
         id,
         name,
+        color,
         created_date AS createdDate
         FROM asset_category
         WHERE id = #{id}
@@ -49,6 +51,7 @@
         SELECT
         id,
         name,
+        color,
         created_date AS createdDate
         FROM asset_category
         WHERE name = #{name}

@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS asset_category (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
+    color TEXT,
     created_date TEXT NOT NULL
 );
 
