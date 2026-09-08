@@ -33,6 +33,7 @@ import AmountText from '../../components/AmountText';
 import { useCategories, useSnapshots } from '../../app/storage';
 import { apiAgentActions } from '../../services/apiAgentActions';
 import type {
+  PendingActionCancellationResult,
   CreateSnapshotDraftResult,
   PendingActionExecutionResult,
 } from '../../services/apiAgentActions';
@@ -81,8 +82,10 @@ const Agent: React.FC = () => {
   const [execution, setExecution] = useState<PendingActionExecutionResult | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const executed = execution?.status === 'EXECUTED';
+  const cancelled = draft?.status === 'CANCELLED';
 
   const sendMessage = (text?: string) => {
     const content = (text ?? input).trim();
@@ -143,7 +146,7 @@ const Agent: React.FC = () => {
   };
 
   const confirmDraft = async () => {
-    if (!draft || confirming) return;
+    if (!draft || draft.status !== 'PENDING' || confirming || cancelling) return;
 
     setConfirming(true);
     try {
@@ -162,6 +165,34 @@ const Agent: React.FC = () => {
       }
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const cancelDraft = async () => {
+    if (!draft || draft.status !== 'PENDING' || confirming || cancelling) return;
+
+    setCancelling(true);
+    try {
+      const result: PendingActionCancellationResult =
+        await apiAgentActions.cancelAction(draft.actionId);
+
+      setDraft((currentDraft) =>
+        currentDraft
+          ? {
+              ...currentDraft,
+              status: result.status,
+              displaySummary: result.displaySummary,
+              expiresAt: result.expiresAt,
+            }
+          : currentDraft
+      );
+      message.success(result.displaySummary || '草案已取消');
+    } catch (err) {
+      if (err instanceof Error) {
+        message.error(err.message);
+      }
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -261,6 +292,8 @@ const Agent: React.FC = () => {
             extra={
               executed ? (
                 <Badge status="success" text="已执行" />
+              ) : cancelled ? (
+                <Badge status="default" text="已取消" />
               ) : draft ? (
                 <Badge status="warning" text="等待确认" />
               ) : (
@@ -313,11 +346,17 @@ const Agent: React.FC = () => {
             ) : draft ? (
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 <Space align="start">
-                  <WarningOutlined style={{ color: token.colorWarning }} />
+                  {cancelled ? (
+                    <CloseCircleOutlined style={{ color: token.colorTextSecondary }} />
+                  ) : (
+                    <WarningOutlined style={{ color: token.colorWarning }} />
+                  )}
                   <div>
                     <Text strong>创建资产快照</Text>
                     <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
-                      {draft.displaySummary}
+                      {cancelled
+                        ? '该草案已取消，不会写入任何资产数据。'
+                        : draft.displaySummary}
                     </Paragraph>
                   </div>
                 </Space>
@@ -346,25 +385,34 @@ const Agent: React.FC = () => {
                   </Space>
                 </Card>
 
-                <Space style={{ width: '100%' }}>
-                  <Button
-                    type="primary"
-                    block
-                    icon={<CheckCircleOutlined />}
-                    loading={confirming}
-                    disabled={confirming}
-                    onClick={confirmDraft}
-                  >
-                    确认创建
+                {draft.status === 'PENDING' ? (
+                  <Space style={{ width: '100%' }}>
+                    <Button
+                      type="primary"
+                      block
+                      icon={<CheckCircleOutlined />}
+                      loading={confirming}
+                      disabled={confirming || cancelling}
+                      onClick={confirmDraft}
+                    >
+                      确认创建
+                    </Button>
+                    <Button
+                      block
+                      danger
+                      icon={<CloseCircleOutlined />}
+                      loading={cancelling}
+                      disabled={confirming || cancelling}
+                      onClick={cancelDraft}
+                    >
+                      取消草案
+                    </Button>
+                  </Space>
+                ) : (
+                  <Button block onClick={resetDraft}>
+                    重新生成草案
                   </Button>
-                  <Button block icon={<CloseCircleOutlined />} disabled>
-                    取消
-                  </Button>
-                </Space>
-
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  取消接口尚未提供，暂不支持取消草案；未确认的草案将在有效期后自动失效。
-                </Text>
+                )}
 
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   操作编号：{draft.actionId} · 有效期至 {draft.expiresAt.replace('T', ' ')}
