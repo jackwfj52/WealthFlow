@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { isValidHexColor } from '../utils/color';
 
 export type ThemeMode = 'light' | 'dark';
 export type TrendAggregation = 'day' | 'week' | 'month';
@@ -7,6 +8,8 @@ export type TrendAggregation = 'day' | 'week' | 'month';
 export interface AppSettings {
   /** 明暗主题 */
   theme: ThemeMode;
+  /** 主题色（antd colorPrimary 主色） */
+  themeColor: string;
   /** 趋势分析默认时间范围（天数） */
   defaultTrendDays: number;
   /** 趋势分析默认聚合粒度 */
@@ -23,6 +26,7 @@ const SETTINGS_KEY = 'wealthflow_settings';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
+  themeColor: '#1677ff',
   defaultTrendDays: 30,
   defaultAggregation: 'day',
   currencySymbol: '¥',
@@ -35,7 +39,12 @@ function loadSettings(): AppSettings {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    // 主题色必须为合法 hex，防止异常值破坏 antd 主题
+    if (typeof merged.themeColor !== 'string' || !isValidHexColor(merged.themeColor)) {
+      merged.themeColor = DEFAULT_SETTINGS.themeColor;
+    }
+    return merged;
   } catch {
     return DEFAULT_SETTINGS;
   }

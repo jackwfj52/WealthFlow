@@ -15,6 +15,7 @@ import {
   Modal,
   Radio,
   Alert,
+  ColorPicker,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -202,6 +203,22 @@ const Settings: React.FC = () => {
               ]}
               value={settings.theme}
               onChange={(v) => updateSettings({ theme: v as ThemeMode })}
+            />
+          </SettingRow>
+          <SettingRow label="主题色">
+            <ColorPicker
+              value={settings.themeColor}
+              onChange={(c) => updateSettings({ themeColor: c.toHexString() })}
+              presets={[
+                {
+                  label: '经典色',
+                  colors: [
+                    '#1677ff', '#f5222d', '#fa541c', '#faad14',
+                    '#52c41a', '#13c2c2', '#2f54eb', '#722ed1',
+                  ],
+                },
+              ]}
+              showText
             />
           </SettingRow>
           <SettingRow label="货币符号">

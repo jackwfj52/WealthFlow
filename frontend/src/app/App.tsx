@@ -85,6 +85,7 @@ const ThemedApp: React.FC = () => {
           settings.theme === 'dark'
             ? antdTheme.darkAlgorithm
             : antdTheme.defaultAlgorithm,
+        token: { colorPrimary: settings.themeColor },
       }}
     >
       <AppShell />
