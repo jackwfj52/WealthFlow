@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.jack.wealthflow.mapper.AiProviderConfigMapper">
+
+    <insert id="insert">
+        INSERT INTO ai_provider_config (
+        provider_id,
+        display_name,
+        protocol,
+        base_url,
+        model,
+        encrypted_api_key,
+        created_at,
+        updated_at
+        )
+        VALUES (
+        #{providerId},
+        #{displayName},
+        #{protocol},
+        #{baseUrl},
+        #{model},
+        #{encryptedApiKey},
+        #{createdAt},
+        #{updatedAt}
+        )
+    </insert>
+
+    <select id="findByProviderId" resultType="AiProviderConfig">
+        SELECT
+        id,
+        provider_id AS providerId,
+        display_name AS displayName,
+        protocol,
+        base_url AS baseUrl,
+        model,
+        encrypted_api_key AS encryptedApiKey,
+        created_at AS createdAt,
+        updated_at AS updatedAt
+        FROM ai_provider_config
+        WHERE provider_id = #{providerId}
+    </select>
+
+    <select id="findAll" resultType="AiProviderConfig">
+        SELECT
+        id,
+        provider_id AS providerId,
+        display_name AS displayName,
+        protocol,
+        base_url AS baseUrl,
+        model,
+        encrypted_api_key AS encryptedApiKey,
+        created_at AS createdAt,
+        updated_at AS updatedAt
+        FROM ai_provider_config
+        ORDER BY id
+    </select>
+
+    <update id="update">
+        UPDATE ai_provider_config
+        SET
+        display_name = #{displayName},
+        protocol = #{protocol},
+        base_url = #{baseUrl},
+        model = #{model},
+        <if test="encryptedApiKey != null">
+        encrypted_api_key = #{encryptedApiKey},
+        </if>
+        updated_at = #{updatedAt}
+        WHERE provider_id = #{providerId}
+    </update>
+
+    <delete id="deleteByProviderId">
+        DELETE FROM ai_provider_config
+        WHERE provider_id = #{providerId}
+    </delete>
+
+</mapper>
