@@ -50,4 +50,19 @@ public class MessageConstant {
     public static final String DPAPI_UNAVAILABLE = "Windows 密钥保护不可用，无法安全保存 API Key";
     public static final String DPAPI_ENCRYPT_FAILED = "API Key 加密失败，配置未保存";
     public static final String DPAPI_DECRYPT_FAILED = "API Key 解密失败，无法读取该配置";
+
+    public static final String AGENT_PROVIDER_ID_NOT_EMPTY = "AI 提供商不能为空";
+    public static final String AGENT_MESSAGE_NOT_EMPTY = "消息内容不能为空";
+    public static final String AGENT_MESSAGE_TOO_LONG = "消息内容不能超过2000个字符";
+    public static final String AGENT_HISTORY_TOO_MANY = "历史消息最多8条";
+    public static final String AGENT_HISTORY_ROLE_INVALID = "历史消息角色只能为 user 或 assistant";
+    public static final String AGENT_HISTORY_CONTENT_INVALID = "历史消息内容不能超过2000个字符";
+    public static final String AGENT_DRAFT_NOT_CREATED = "草案未生成：请检查日期、分类和金额后重试";
+    public static final String AGENT_REPLY_PARSE_FALLBACK = "我暂时无法可靠地解析这次请求，请补充日期、分类和金额后重试。";
+
+    public static final String AI_MODEL_TIMEOUT = "模型服务响应超时，请稍后重试";
+    public static final String AI_MODEL_NETWORK_ERROR = "无法连接模型服务，请检查 Base URL 与网络";
+    public static final String AI_MODEL_AUTH_FAILED = "模型服务认证失败，请检查 API Key";
+    public static final String AI_MODEL_EMPTY_RESPONSE = "模型服务未返回有效内容";
+    public static final String AI_MODEL_RESPONSE_PARSE_FAILED = "模型服务响应解析失败";
 }

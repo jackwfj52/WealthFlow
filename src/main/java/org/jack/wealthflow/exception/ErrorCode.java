@@ -21,7 +21,10 @@ public enum ErrorCode {
     SNAPSHOT_DRAFT_PARSE_FAILED(50001, 500, "快照草案数据已损坏，无法执行"),
     DPAPI_UNAVAILABLE(50002, 500, "Windows 密钥保护不可用，无法安全保存 API Key"),
     DPAPI_ENCRYPT_FAILED(50003, 500, "API Key 加密失败，配置未保存"),
-    DPAPI_DECRYPT_FAILED(50004, 500, "API Key 解密失败，无法读取该配置");
+    DPAPI_DECRYPT_FAILED(50004, 500, "API Key 解密失败，无法读取该配置"),
+
+    AI_MODEL_AUTH_FAILED(50010, 502, "模型服务认证失败，请检查 API Key"),
+    AI_MODEL_CALL_FAILED(50011, 502, "模型服务调用失败");
 
     private final int code;
     private final int httpStatus;
