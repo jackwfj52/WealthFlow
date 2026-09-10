@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -13,7 +13,9 @@ import {
   InputNumber,
   List,
   Row,
+  Select,
   Space,
+  Spin,
   Typography,
   message,
   theme,
@@ -37,6 +39,10 @@ import type {
   CreateSnapshotDraftResult,
   PendingActionExecutionResult,
 } from '../../services/apiAgentActions';
+import { aiProviderService } from '../../services/apiAgentProviders';
+import type { AiProviderConfig } from '../../services/apiAgentProviders';
+import { apiAgentChat } from '../../services/apiAgentChat';
+import type { AgentChatMessage } from '../../services/apiAgentChat';
 
 const { Text, Paragraph } = Typography;
 
@@ -46,6 +52,8 @@ interface ChatMessage {
   id: number;
   role: MessageRole;
   content: string;
+  /** 模型返回前显示"正在分析..."占位 */
+  loading?: boolean;
 }
 
 interface DraftEntryFormValues {
@@ -65,7 +73,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 1,
     role: 'assistant',
     content:
-      '你好，我是 WealthFlow AI 助手。当前聊天尚未接入大模型，回复为演示内容；右侧"待确认操作"已接入真实的快照草案与确认流程。',
+      '你好，我是 WealthFlow AI 助手。我可以基于你的本地资产数据回答问题、起草资产快照；所有写入操作都需要你在右侧确认后才会执行。',
   },
 ];
 
@@ -78,6 +86,10 @@ const Agent: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [form] = Form.useForm<DraftEntryFormValues>();
 
+  const [providers, setProviders] = useState<AiProviderConfig[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<string>();
+  const [sending, setSending] = useState(false);
+
   const [draft, setDraft] = useState<CreateSnapshotDraftResult | null>(null);
   const [execution, setExecution] = useState<PendingActionExecutionResult | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
@@ -87,22 +99,91 @@ const Agent: React.FC = () => {
   const executed = execution?.status === 'EXECUTED';
   const cancelled = draft?.status === 'CANCELLED';
 
-  const sendMessage = (text?: string) => {
+  useEffect(() => {
+    let cancelledRequest = false;
+    aiProviderService
+      .getAll()
+      .then((list) => {
+        if (cancelledRequest) return;
+        setProviders(list);
+        setSelectedProviderId((current) => current ?? list[0]?.providerId);
+      })
+      .catch((err) => {
+        if (cancelledRequest) return;
+        if (err instanceof Error) {
+          message.error(err.message);
+        }
+      });
+    return () => {
+      cancelledRequest = true;
+    };
+  }, []);
+
+  const sendMessage = async (text?: string) => {
     const content = (text ?? input).trim();
-    if (!content) return;
+    if (!content || sending || !selectedProviderId) return;
+
+    // 只发送最近 8 条用户/助手聊天记录，不发送 API Key 与系统提示词
+    const history: AgentChatMessage[] = messages
+      .slice(-8)
+      .map((item) => ({
+        role: item.role as AgentChatMessage['role'],
+        content: item.content,
+      }));
+
+    const userMessage: ChatMessage = {
+      id: Date.now(),
+      role: 'user',
+      content,
+    };
+    const placeholderId = Date.now() + 1;
 
     setMessages((previous) => [
       ...previous,
-      { id: Date.now(), role: 'user', content },
+      userMessage,
       {
-        id: Date.now() + 1,
+        id: placeholderId,
         role: 'assistant',
-        content: content.includes('快照')
-          ? '聊天尚未接入模型，无法自动生成草案。请在右侧手动填写快照日期与分类金额，然后点击"生成待确认草案"。'
-          : '聊天尚未接入模型，当前回复仅为演示内容。',
+        content: '',
+        loading: true,
       },
     ]);
     setInput('');
+    setSending(true);
+
+    try {
+      const result = await apiAgentChat.chat({
+        providerId: selectedProviderId,
+        message: content,
+        history,
+      });
+
+      setMessages((previous) =>
+        previous.map((item) =>
+          item.id === placeholderId
+            ? { ...item, content: result.reply, loading: false }
+            : item
+        )
+      );
+
+      if (result.draft) {
+        setDraft(result.draft);
+        setExecution(null);
+        message.success('草案已生成，请核对后确认');
+      }
+      if (result.draftError) {
+        message.warning(result.draftError);
+      }
+    } catch (err) {
+      setMessages((previous) =>
+        previous.filter((item) => item.id !== placeholderId)
+      );
+      if (err instanceof Error) {
+        message.error(err.message);
+      }
+    } finally {
+      setSending(false);
+    }
   };
 
   const generateDraft = async () => {
@@ -221,8 +302,8 @@ const Agent: React.FC = () => {
               showIcon
               type="info"
               icon={<RobotOutlined />}
-              message="聊天尚未接入大模型"
-              description="当前聊天回复为演示内容。右侧的草案生成与确认已连接真实接口。"
+              message="已接入 AI 模型"
+              description="回复基于本地资产数据生成；模型只能提出草案建议，写入前必须由你确认。"
               style={{ margin: 16, marginBottom: 0 }}
             />
 
@@ -256,7 +337,14 @@ const Agent: React.FC = () => {
                             boxShadow: `0 1px 2px ${token.colorBorderSecondary}`,
                           }}
                         >
-                          {item.content}
+                          {item.loading ? (
+                            <Space size={8}>
+                              <Spin size="small" />
+                              <Text>正在分析...</Text>
+                            </Space>
+                          ) : (
+                            item.content
+                          )}
                         </div>
                         {isUser && <Avatar icon={<UserOutlined />} />}
                       </Space>
@@ -268,9 +356,37 @@ const Agent: React.FC = () => {
 
             <Divider style={{ margin: 0 }} />
             <div style={{ padding: 16 }}>
+              {providers.length === 0 ? (
+                <Alert
+                  showIcon
+                  type="warning"
+                  message="请先到设置页面配置 AI 提供商"
+                  description="配置 AI 提供商后才能对话；所有写入操作仍需要你确认。"
+                  style={{ marginBottom: 12 }}
+                />
+              ) : (
+                <Space style={{ width: '100%', marginBottom: 12 }}>
+                  <Text type="secondary">模型：</Text>
+                  <Select
+                    style={{ minWidth: 240 }}
+                    value={selectedProviderId}
+                    onChange={setSelectedProviderId}
+                    options={providers.map((provider) => ({
+                      value: provider.providerId,
+                      label: `${provider.displayName}（${provider.model}）`,
+                    }))}
+                  />
+                </Space>
+              )}
+
               <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
                 {SUGGESTIONS.map((suggestion) => (
-                  <Button key={suggestion} size="small" onClick={() => sendMessage(suggestion)}>
+                  <Button
+                    key={suggestion}
+                    size="small"
+                    disabled={sending || providers.length === 0}
+                    onClick={() => sendMessage(suggestion)}
+                  >
                     {suggestion}
                   </Button>
                 ))}
@@ -278,7 +394,16 @@ const Agent: React.FC = () => {
               <Input.Search
                 value={input}
                 placeholder="例如：帮我创建今天的资产快照"
-                enterButton={<Button type="primary" icon={<SendOutlined />}>发送</Button>}
+                enterButton={
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    loading={sending}
+                    disabled={providers.length === 0 || !selectedProviderId}
+                  >
+                    发送
+                  </Button>
+                }
                 onChange={(event) => setInput(event.target.value)}
                 onSearch={() => sendMessage()}
               />
