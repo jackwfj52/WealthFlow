@@ -186,6 +186,31 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         }
     }
 
+    @Override
+    public AiProviderConfigService.ResolvedConnection resolveConnection(
+            String providerId
+    ) {
+        AiProviderConfig config = requireConfig(providerId);
+
+        if (!PROTOCOL_OPENAI_COMPATIBLE.equals(config.getProtocol())) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.AI_PROVIDER_PROTOCOL_UNSUPPORTED
+            );
+        }
+
+        // 解密结果只用于后端内部调用模型，绝不进入 Controller 或日志
+        String apiKey = secretProtector.decrypt(config.getEncryptedApiKey());
+
+        return new AiProviderConfigService.ResolvedConnection(
+                config.getProviderId(),
+                config.getDisplayName(),
+                config.getBaseUrl(),
+                config.getModel(),
+                apiKey
+        );
+    }
+
     private void validateForWrite(
             AiProviderConfigRequest request,
             boolean apiKeyRequired
