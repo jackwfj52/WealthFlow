@@ -25,8 +25,16 @@ export interface SnapshotService {
   update(id: string, items: SnapshotItem[]): Promise<AssetSnapshot | undefined>;
   delete(id: string): Promise<boolean>;
   filterByDateRange(startDate: string, endDate: string): Promise<AssetSnapshot[]>;
+  /** 批量创建快照：日期已存在时覆盖该日期的全部明细 */
+  batchSave(entries: SnapshotBatchEntry[]): Promise<AssetSnapshot[]>;
   /** 重置数据（仅 Mock 模式支持） */
   reset(snapshots: AssetSnapshot[]): Promise<void>;
+}
+
+/** 批量创建快照的单条数据：一个日期对应一组分类金额明细 */
+export interface SnapshotBatchEntry {
+  snapshotDate: string;
+  items: SnapshotItem[];
 }
 
 /** 系统信息（数据库路径与数据量统计） */

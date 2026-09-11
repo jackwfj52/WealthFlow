@@ -4,7 +4,7 @@
  */
 import type { AssetSnapshot, SnapshotItem } from '../types/domain';
 import { ApiError, apiClient } from './apiClient';
-import type { SnapshotService } from './types';
+import type { SnapshotBatchEntry, SnapshotService } from './types';
 
 interface SnapshotPayload {
   id: string;
@@ -78,6 +78,15 @@ export const apiSnapshotService: SnapshotService = {
     return all
       .filter((s) => s.snapshotDate >= startDate && s.snapshotDate <= endDate)
       .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
+  },
+
+  async batchSave(entries: SnapshotBatchEntry[]): Promise<AssetSnapshot[]> {
+    return apiClient.post<SnapshotPayload[]>('/snapshots/batch', {
+      entries: entries.map((entry) => ({
+        snapshotDate: entry.snapshotDate,
+        items: toRequestItems(entry.items),
+      })),
+    });
   },
 
   async reset(): Promise<void> {

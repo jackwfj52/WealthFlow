@@ -8,6 +8,7 @@
  * - 同一日期同一分类最多一条明细
  * - 删除需二次确认
  * - 日期严格校验 YYYY-MM-DD 真实日期，不能晚于今天
+ * - 批量创建：表格逐行填写，已有快照的日期经确认后直接覆盖
  */
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
@@ -17,6 +18,7 @@ import {
   Form,
   DatePicker,
   Input,
+  InputNumber,
   Select,
   Space,
   Popconfirm,
@@ -31,6 +33,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined,
+  PlusSquareOutlined,
   EditOutlined,
   DeleteOutlined,
   SearchOutlined,
@@ -51,6 +54,7 @@ import { isValidAmount } from '../../utils/amount';
 import { isValidDateOnly, isValidDateRange } from '../../utils/date';
 import { getCategoryColor } from '../../utils/color';
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
+import type { SnapshotBatchEntry } from '../../services/types';
 import {
   parseImportJson,
   buildExportJson,
@@ -61,6 +65,13 @@ import {
 import type { ParseReport, ImportRunReport, SkippedEntry } from './importExport';
 
 dayjs.extend(customParseFormat);
+
+/** 批量创建表格中的一行：一个日期 + 各分类金额 */
+type BatchRow = {
+  key: number;
+  date: dayjs.Dayjs | null;
+  amounts: Record<string, string | undefined>;
+};
 
 const Snapshots: React.FC = () => {
   const { snapshots, loading, refresh: refreshSnapshots } = useSnapshots();
@@ -281,6 +292,160 @@ const Snapshots: React.FC = () => {
     setBatchDeleting(false);
   }, [selectedRowKeys, refreshSnapshots]);
 
+  // --- 批量创建 ---
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchSaving, setBatchSaving] = useState(false);
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
+
+  const createEmptyBatchRow = useCallback(
+    (): BatchRow => ({ key: Date.now() + Math.random(), date: null, amounts: {} }),
+    []
+  );
+
+  const openBatchDrawer = useCallback(() => {
+    setBatchRows([createEmptyBatchRow()]);
+    setBatchOpen(true);
+  }, [createEmptyBatchRow]);
+
+  const closeBatchDrawer = useCallback(() => {
+    setBatchOpen(false);
+    setBatchRows([]);
+  }, []);
+
+  const updateBatchRowDate = useCallback(
+    (key: number, date: dayjs.Dayjs | null) => {
+      setBatchRows((rows) =>
+        rows.map((row) => (row.key === key ? { ...row, date } : row))
+      );
+    },
+    []
+  );
+
+  const updateBatchRowAmount = useCallback(
+    (key: number, categoryId: string, value: string | null) => {
+      setBatchRows((rows) =>
+        rows.map((row) =>
+          row.key === key
+            ? { ...row, amounts: { ...row.amounts, [categoryId]: value ?? undefined } }
+            : row
+        )
+      );
+    },
+    []
+  );
+
+  const removeBatchRow = useCallback((key: number) => {
+    setBatchRows((rows) =>
+      rows.length <= 1 ? rows : rows.filter((row) => row.key !== key)
+    );
+  }, []);
+
+  const addBatchRow = useCallback(() => {
+    setBatchRows((rows) => [...rows, createEmptyBatchRow()]);
+  }, [createEmptyBatchRow]);
+
+  const handleBatchSubmit = useCallback(async () => {
+    if (batchRows.length === 0) {
+      message.error('请至少添加一行快照数据');
+      return;
+    }
+
+    const entries: SnapshotBatchEntry[] = [];
+    const seenDates = new Set<string>();
+
+    for (const row of batchRows) {
+      if (!row.date) {
+        message.error('每行的快照日期都不能为空');
+        return;
+      }
+
+      const dateStr = row.date.format('YYYY-MM-DD');
+      if (!isValidDateOnly(dateStr)) {
+        message.error(`日期"${dateStr}"无效，请选择真实日期且不能晚于今天`);
+        return;
+      }
+      if (seenDates.has(dateStr)) {
+        message.error(`日期"${dateStr}"重复，同一批次中不能有重复日期`);
+        return;
+      }
+      seenDates.add(dateStr);
+
+      const filledItems = categories
+        .filter((category) => {
+          const raw = row.amounts[category.id];
+          return raw !== undefined && String(raw).trim() !== '';
+        })
+        .map((category) => ({
+          categoryId: category.id,
+          categoryName: category.name,
+          amount: String(row.amounts[category.id]).trim(),
+        }));
+
+      if (filledItems.length === 0) {
+        message.error(`日期 ${dateStr} 至少需要填写一个分类的金额`);
+        return;
+      }
+      for (const item of filledItems) {
+        if (!isValidAmount(item.amount)) {
+          message.error(
+            `日期 ${dateStr} 分类"${item.categoryName}"金额无效，需为大于 0 且最多两位小数`
+          );
+          return;
+        }
+      }
+
+      entries.push({ snapshotDate: dateStr, items: filledItems });
+    }
+
+    const overwriteDates = entries
+      .map((entry) => entry.snapshotDate)
+      .filter((date) => snapshots.some((snapshot) => snapshot.snapshotDate === date));
+
+    const doSave = async () => {
+      setBatchSaving(true);
+      try {
+        await snapshotService.batchSave(entries);
+        message.success(
+          overwriteDates.length > 0
+            ? `已批量保存 ${entries.length} 个日期的快照，覆盖 ${overwriteDates.length} 个已有日期`
+            : `已批量创建 ${entries.length} 个日期的快照`
+        );
+        setBatchOpen(false);
+        setBatchRows([]);
+        refreshSnapshots();
+      } catch (err) {
+        if (err instanceof Error) {
+          message.error(err.message);
+        }
+      } finally {
+        setBatchSaving(false);
+      }
+    };
+
+    if (overwriteDates.length > 0) {
+      Modal.confirm({
+        title: '覆盖确认',
+        content: (
+          <>
+            <p>以下日期的快照已存在，提交后将直接覆盖：</p>
+            <ul style={{ marginBottom: 0 }}>
+              {overwriteDates.map((date) => (
+                <li key={date}>{date}</li>
+              ))}
+            </ul>
+            <p style={{ marginTop: 8 }}>覆盖后原数据不可恢复，是否继续？</p>
+          </>
+        ),
+        okText: '确认覆盖',
+        okButtonProps: { danger: true },
+        cancelText: '取消',
+        onOk: () => doSave(),
+      });
+    } else {
+      await doSave();
+    }
+  }, [batchRows, categories, snapshots, refreshSnapshots]);
+
   // --- 导入导出 ---
   const openImport = useCallback(() => {
     setImportOpen(true);
@@ -422,6 +587,58 @@ const Snapshots: React.FC = () => {
     value: c.id,
   }));
 
+  // --- 批量创建表格列：日期 + 每个分类一列 ---
+  const batchColumns: ColumnsType<BatchRow> = [
+    {
+      title: '快照日期',
+      key: 'date',
+      width: 150,
+      fixed: 'left',
+      render: (_, row) => (
+        <DatePicker
+          style={{ width: '100%' }}
+          value={row.date}
+          disabledDate={(d) => d && d.isAfter(dayjs(), 'day')}
+          placeholder="选择日期"
+          onChange={(date) => updateBatchRowDate(row.key, date)}
+        />
+      ),
+    },
+    ...categories.map((category) => ({
+      title: category.name,
+      key: category.id,
+      width: 130,
+      render: (_: unknown, row: BatchRow) => (
+        <InputNumber
+          style={{ width: '100%' }}
+          min="0"
+          precision={2}
+          stringMode
+          placeholder="金额（元）"
+          value={row.amounts[category.id] ?? null}
+          onChange={(value) => updateBatchRowAmount(row.key, category.id, value)}
+        />
+      ),
+    })),
+    {
+      title: '操作',
+      key: 'actions',
+      width: 80,
+      fixed: 'right',
+      render: (_, row) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          disabled={batchRows.length <= 1}
+          onClick={() => removeBatchRow(row.key)}
+        >
+          移除
+        </Button>
+      ),
+    },
+  ];
+
   if (loading) {
     return <Spin size="large" style={{ display: 'block', marginTop: 120 }} />;
   }
@@ -438,6 +655,9 @@ const Snapshots: React.FC = () => {
             </Button>
             <Button icon={<UploadOutlined />} onClick={handleExport}>
               导出 JSON
+            </Button>
+            <Button icon={<PlusSquareOutlined />} onClick={openBatchDrawer}>
+              批量创建
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openAddDrawer}>
               新增快照
@@ -646,6 +866,59 @@ const Snapshots: React.FC = () => {
             )}
           </Form.List>
         </Form>
+      </Drawer>
+
+      {/* 批量创建抽屉 */}
+      <Drawer
+        title="批量创建快照"
+        open={batchOpen}
+        onClose={closeBatchDrawer}
+        width={960}
+        extra={
+          <Space>
+            <Button onClick={closeBatchDrawer}>取消</Button>
+            <Button type="primary" loading={batchSaving} onClick={handleBatchSubmit}>
+              批量保存
+            </Button>
+          </Space>
+        }
+      >
+        <Alert
+          title="表格中每一行对应一个日期的快照，各分类金额按列填写。已存在快照的日期将在你确认后直接覆盖，覆盖后不可恢复。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 20 }}
+        />
+
+        {categories.length === 0 ? (
+          <Alert
+            showIcon
+            type="warning"
+            message="暂无分类"
+            description="请先在「分类管理」页面创建分类，再回来批量创建。"
+          />
+        ) : (
+          <>
+            <Table<BatchRow>
+              rowKey="key"
+              columns={batchColumns}
+              dataSource={batchRows}
+              pagination={false}
+              scroll={{ x: 'max-content' }}
+              size="small"
+            />
+            <Button
+              type="dashed"
+              block
+              icon={<PlusOutlined />}
+              style={{ marginTop: 12 }}
+              disabled={batchRows.length >= 100}
+              onClick={addBatchRow}
+            >
+              添加一行（最多 100 行）
+            </Button>
+          </>
+        )}
       </Drawer>
 
       {/* 导入 JSON 弹窗 */}

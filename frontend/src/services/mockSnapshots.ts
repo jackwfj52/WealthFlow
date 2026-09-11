@@ -21,7 +21,7 @@ import {
   isValidDateFormat,
   isValidDateRange,
 } from '../utils/date';
-import type { SnapshotService } from './types';
+import type { SnapshotBatchEntry, SnapshotService } from './types';
 
 const STORAGE_KEY = 'wealthflow_snapshots';
 
@@ -184,6 +184,49 @@ export const snapshotService: SnapshotService = {
     return read()
       .filter((s) => s.snapshotDate >= startDate && s.snapshotDate <= endDate)
       .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
+  },
+
+  /**
+   * 批量创建快照：日期已存在时直接覆盖该日期的全部明细
+   * （调用方应事先提示用户哪些日期将被覆盖）。
+   */
+  async batchSave(entries: SnapshotBatchEntry[]): Promise<AssetSnapshot[]> {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      throw new Error('批量快照数据不能为空');
+    }
+
+    const snapshots = read();
+    const results: AssetSnapshot[] = [];
+
+    for (const entry of entries) {
+      const { snapshotDate, items } = entry;
+      if (!isValidDateOnly(snapshotDate)) {
+        throw new Error(
+          `日期"${snapshotDate}"无效。请确认该日期真实存在且不晚于今天。`
+        );
+      }
+
+      const { valid, error } = validateItems(items);
+      if (error) throw new Error(`日期 ${snapshotDate}：${error}`);
+
+      const idx = snapshots.findIndex((s) => s.snapshotDate === snapshotDate);
+      const snapshot: AssetSnapshot = {
+        id: idx === -1 ? generateId() : snapshots[idx].id,
+        snapshotDate,
+        items: valid,
+        totalAmount: sumAmounts(valid.map((i) => i.amount)),
+      };
+
+      if (idx === -1) {
+        snapshots.push(snapshot);
+      } else {
+        snapshots[idx] = snapshot;
+      }
+      results.push(snapshot);
+    }
+
+    write(snapshots);
+    return results;
   },
 
   /** 批量重置 */
