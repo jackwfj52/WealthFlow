@@ -11,6 +11,7 @@ import org.jack.wealthflow.mapper.AssetCategoryMapper;
 import org.jack.wealthflow.mapper.AssetSnapshotMapper;
 import org.jack.wealthflow.model.AssetCategory;
 import org.jack.wealthflow.model.AssetSnapshot;
+import org.jack.wealthflow.model.AssetSnapshotBatchEntry;
 import org.jack.wealthflow.service.AssetSnapshotService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -90,6 +91,71 @@ public class AssetSnapshotServiceImpl implements AssetSnapshotService {
             );
         }
 
+        return doCreate(snapshotDate, validItems);
+    }
+
+    @Override
+    @Transactional
+    public AssetSnapshotResponse update(Long id, List<AssetSnapshot> items) {
+        AssetSnapshot existing = requireSnapshot(id);
+        List<AssetSnapshot> validItems = validateAndCopyItems(items);
+        return doUpdate(existing, validItems);
+    }
+
+    @Override
+    @Transactional
+    public List<AssetSnapshotResponse> batchSave(List<AssetSnapshotBatchEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.SNAPSHOT_BATCH_ENTRIES_NOT_EMPTY
+            );
+        }
+        if (entries.size() > 100) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.SNAPSHOT_BATCH_ENTRIES_TOO_MANY
+            );
+        }
+
+        Set<LocalDate> dates = new HashSet<>();
+        List<AssetSnapshotResponse> responses = new ArrayList<>();
+
+        for (AssetSnapshotBatchEntry entry : entries) {
+            if (entry == null) {
+                throw new BusinessException(
+                        ErrorCode.PARAM_INVALID,
+                        MessageConstant.SNAPSHOT_BATCH_ENTRIES_NOT_EMPTY
+                );
+            }
+
+            LocalDate snapshotDate = entry.snapshotDate();
+            validateSnapshotDate(snapshotDate);
+            if (!dates.add(snapshotDate)) {
+                throw new BusinessException(
+                        ErrorCode.PARAM_INVALID,
+                        MessageConstant.SNAPSHOT_BATCH_DATES_DUPLICATE
+                );
+            }
+
+            List<AssetSnapshot> validItems = validateAndCopyItems(entry.items());
+
+            List<AssetSnapshot> existingSnapshots =
+                    assetSnapshotMapper.findBySnapshotDate(snapshotDate);
+            if (existingSnapshots.isEmpty()) {
+                responses.add(doCreate(snapshotDate, validItems));
+            } else {
+                responses.add(doUpdate(existingSnapshots.get(0), validItems));
+            }
+        }
+
+        return responses;
+    }
+
+    private AssetSnapshotResponse doCreate(
+            LocalDate snapshotDate,
+            List<AssetSnapshot> validItems
+    ) {
         for (AssetSnapshot item : validItems) {
             item.setSnapshotDate(snapshotDate);
             int rows = assetSnapshotMapper.insert(item);
@@ -109,12 +175,10 @@ public class AssetSnapshotServiceImpl implements AssetSnapshotService {
         );
     }
 
-    @Override
-    @Transactional
-    public AssetSnapshotResponse update(Long id, List<AssetSnapshot> items) {
-        AssetSnapshot existing = requireSnapshot(id);
-        List<AssetSnapshot> validItems = validateAndCopyItems(items);
-
+    private AssetSnapshotResponse doUpdate(
+            AssetSnapshot existing,
+            List<AssetSnapshot> validItems
+    ) {
         AssetSnapshot retainedItem = validItems.get(0);
         retainedItem.setId(existing.getId());
         retainedItem.setSnapshotDate(existing.getSnapshotDate());

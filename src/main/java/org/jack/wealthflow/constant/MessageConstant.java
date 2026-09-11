@@ -25,6 +25,9 @@ public class MessageConstant {
     public static final String ASSET_SNAPSHOT_ADD_FAILED = "资产快照新增失败";
     public static final String ASSET_SNAPSHOT_UPDATE_FAILED = "资产快照修改失败";
     public static final String ASSET_SNAPSHOT_DELETE_FAILED = "资产快照删除失败";
+    public static final String SNAPSHOT_BATCH_ENTRIES_NOT_EMPTY = "批量快照数据不能为空";
+    public static final String SNAPSHOT_BATCH_DATES_DUPLICATE = "批量快照中不能包含重复日期";
+    public static final String SNAPSHOT_BATCH_ENTRIES_TOO_MANY = "一次最多批量创建100个日期的快照";
 
     public static final String PENDING_ACTION_NOT_FOUND = "待确认操作不存在";
     public static final String PENDING_ACTION_NOT_PENDING = "该操作当前不能执行";

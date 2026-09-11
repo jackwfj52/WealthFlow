@@ -2,6 +2,7 @@ package org.jack.wealthflow.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.dto.ApiResponse;
+import org.jack.wealthflow.dto.AssetSnapshotBatchCreateRequest;
 import org.jack.wealthflow.dto.AssetSnapshotCreateRequest;
 import org.jack.wealthflow.dto.AssetSnapshotResponse;
 import org.jack.wealthflow.dto.AssetSnapshotUpdateRequest;
@@ -10,6 +11,7 @@ import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.exception.ErrorCode;
 import org.jack.wealthflow.model.AssetSnapshot;
+import org.jack.wealthflow.model.AssetSnapshotBatchEntry;
 import org.jack.wealthflow.service.AssetSnapshotService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -86,6 +88,33 @@ public class AssetSnapshotController {
         );
 
         return ResponseEntity.ok(ApiResponse.success(updated));
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<ApiResponse<List<AssetSnapshotResponse>>> batchCreate(
+            @RequestBody(required = false) AssetSnapshotBatchCreateRequest request
+    ) {
+        if (request == null) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.SNAPSHOT_BATCH_ENTRIES_NOT_EMPTY
+            );
+        }
+
+        List<AssetSnapshotBatchEntry> entries = request.entries() == null
+                ? null
+                : request.entries().stream()
+                        .map(entry -> entry == null
+                                ? null
+                                : new AssetSnapshotBatchEntry(
+                                        entry.snapshotDate(),
+                                        toSnapshotItems(entry.items())
+                                ))
+                        .toList();
+
+        return ResponseEntity.ok(
+                ApiResponse.success(assetSnapshotService.batchSave(entries))
+        );
     }
 
     @DeleteMapping("/{id}")
