@@ -24,6 +24,7 @@ import java.util.Set;
 public class ModelReplyParser {
 
     private static final int MAX_PROPOSAL_ITEMS = 100;
+    private static final int MAX_DELETE_DATES = 30;
 
     private final ObjectMapper objectMapper;
 
@@ -67,6 +68,17 @@ public class ModelReplyParser {
                 return fallback();
             }
             return ModelReply.propose(reply, proposal);
+        }
+
+        if (ModelReply.KIND_PROPOSE_DELETE_SNAPSHOTS.equals(kind)) {
+            if (proposalNode == null || !proposalNode.isObject()) {
+                return fallback();
+            }
+            ModelDeleteProposal proposal = parseDeleteProposal(proposalNode);
+            if (proposal == null) {
+                return fallback();
+            }
+            return ModelReply.proposeDelete(reply, proposal);
         }
 
         return fallback();
@@ -152,6 +164,40 @@ public class ModelReplyParser {
         }
 
         return new ModelSnapshotProposal(snapshotDate, items);
+    }
+
+    private ModelDeleteProposal parseDeleteProposal(JsonNode proposalNode) {
+        JsonNode datesNode = proposalNode.get("snapshotDates");
+        if (datesNode == null
+                || !datesNode.isArray()
+                || datesNode.isEmpty()
+                || datesNode.size() > MAX_DELETE_DATES) {
+            return null;
+        }
+
+        List<LocalDate> snapshotDates = new ArrayList<>();
+        Set<LocalDate> seenDates = new HashSet<>();
+
+        for (JsonNode dateNode : datesNode) {
+            if (dateNode == null || !dateNode.isTextual()) {
+                return null;
+            }
+
+            LocalDate snapshotDate;
+            try {
+                snapshotDate = LocalDate.parse(dateNode.asText().trim());
+            } catch (DateTimeParseException exception) {
+                return null;
+            }
+
+            if (!seenDates.add(snapshotDate)) {
+                return null;
+            }
+
+            snapshotDates.add(snapshotDate);
+        }
+
+        return new ModelDeleteProposal(snapshotDates);
     }
 
     private Long parseCategoryId(JsonNode node) {

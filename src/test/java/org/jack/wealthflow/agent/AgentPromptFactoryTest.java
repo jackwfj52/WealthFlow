@@ -140,4 +140,22 @@ class AgentPromptFactoryTest {
                 "- " + LocalDate.of(2026, 9, 10).minusDays(20) + "：1000.00 元"
         ));
     }
+
+    @Test
+    void shouldDescribeDeleteDraftRules() {
+        when(assetCategoryMapper.findAll()).thenReturn(List.of());
+        when(assetSnapshotMapper.findAll()).thenReturn(List.of());
+
+        String prompt = promptFactory.buildSystemPrompt();
+
+        // 模型仍无执行权限，只能提出删除草案
+        assertTrue(prompt.contains("不能执行操作"));
+        assertTrue(prompt.contains("不能直接删除或修改资产数据"));
+        // 删除草案的输出格式与约束
+        assertTrue(prompt.contains("propose_delete_snapshots"));
+        assertTrue(prompt.contains("\"snapshotDates\""));
+        assertTrue(prompt.contains("确认后才会删除且不可恢复"));
+        // 只能删除上下文中存在的日期
+        assertTrue(prompt.contains("出现在\"历史快照\"上下文列出的日期中"));
+    }
 }

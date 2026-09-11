@@ -9,5 +9,5 @@ import java.util.List;
 public record ModelSnapshotProposal(
         LocalDate snapshotDate,
         List<ModelSnapshotItem> items
-) {
+) implements ModelProposal {
 }

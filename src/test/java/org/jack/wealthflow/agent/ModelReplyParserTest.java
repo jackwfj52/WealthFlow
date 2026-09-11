@@ -110,7 +110,8 @@ class ModelReplyParserTest {
                 """);
 
         assertEquals(ModelReply.KIND_PROPOSE_CREATE_SNAPSHOT, reply.kind());
-        ModelSnapshotProposal proposal = reply.proposal();
+        ModelSnapshotProposal proposal =
+                (ModelSnapshotProposal) reply.proposal();
         assertEquals(LocalDate.of(2026, 9, 10), proposal.snapshotDate());
         assertEquals(2, proposal.items().size());
         assertEquals(1L, proposal.items().get(0).categoryId());
@@ -277,7 +278,134 @@ class ModelReplyParserTest {
 
         assertEquals(ModelReply.KIND_PROPOSE_CREATE_SNAPSHOT, reply.kind());
         assertEquals(new BigDecimal("5000.00"),
-                reply.proposal().items().get(0).amount());
+                ((ModelSnapshotProposal) reply.proposal())
+                        .items().get(0).amount());
+    }
+
+    @Test
+    void shouldParseValidDeleteProposal() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除 2026-09-01、2026-09-02 的快照，确认后才会删除且不可恢复。",
+                  "proposal": {
+                    "snapshotDates": ["2026-09-01", "2026-09-02"]
+                  }
+                }
+                """);
+
+        assertEquals(ModelReply.KIND_PROPOSE_DELETE_SNAPSHOTS, reply.kind());
+        ModelDeleteProposal proposal =
+                (ModelDeleteProposal) reply.proposal();
+        assertEquals(2, proposal.snapshotDates().size());
+        assertEquals(
+                LocalDate.of(2026, 9, 1),
+                proposal.snapshotDates().get(0)
+        );
+        assertEquals(
+                LocalDate.of(2026, 9, 2),
+                proposal.snapshotDates().get(1)
+        );
+    }
+
+    @Test
+    void shouldRejectDeleteProposalWithoutProposal() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": null
+                }
+                """);
+
+        assertFallback(reply);
+    }
+
+    @Test
+    void shouldRejectDeleteProposalWithEmptyDates() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": { "snapshotDates": [] }
+                }
+                """);
+
+        assertFallback(reply);
+    }
+
+    @Test
+    void shouldRejectDeleteProposalWithNonTextualDate() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": { "snapshotDates": [20260901] }
+                }
+                """);
+
+        assertFallback(reply);
+    }
+
+    @Test
+    void shouldRejectDeleteProposalWithUnparseableDate() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": { "snapshotDates": ["2026-13-45"] }
+                }
+                """);
+
+        assertFallback(reply);
+    }
+
+    @Test
+    void shouldRejectDeleteProposalWithDuplicateDates() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": {
+                    "snapshotDates": ["2026-09-01", "2026-09-01"]
+                  }
+                }
+                """);
+
+        assertFallback(reply);
+    }
+
+    @Test
+    void shouldRejectDeleteProposalWithTooManyDates() {
+        String dates = java.util.stream.IntStream.rangeClosed(1, 31)
+                .mapToObj(day -> String.format(
+                        "\"2026-08-%02d\"",
+                        day
+                ))
+                .collect(java.util.stream.Collectors.joining(","));
+
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": { "snapshotDates": [%s] }
+                }
+                """.formatted(dates));
+
+        assertFallback(reply);
+    }
+
+    @Test
+    void shouldRejectDeleteProposalMissingDates() {
+        ModelReply reply = parser.parse("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照",
+                  "proposal": { "note": "没有日期" }
+                }
+                """);
+
+        assertFallback(reply);
     }
 
     private void assertFallbackOnAmount(String amount) {
