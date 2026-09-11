@@ -167,6 +167,34 @@ public class AssetSnapshotServiceImpl implements AssetSnapshotService {
         }
     }
 
+    @Override
+    @Transactional
+    public void deleteBySnapshotDate(LocalDate snapshotDate) {
+        if (snapshotDate == null) {
+            throw new BusinessException(
+                    ErrorCode.PARAM_INVALID,
+                    MessageConstant.SNAPSHOT_DATE_NOT_EMPTY
+            );
+        }
+
+        List<AssetSnapshot> existingSnapshots =
+                assetSnapshotMapper.findBySnapshotDate(snapshotDate);
+        if (existingSnapshots.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.SNAPSHOT_NOT_FOUND,
+                    MessageConstant.SNAPSHOT_NOT_FOUND
+            );
+        }
+
+        int rows = assetSnapshotMapper.deleteBySnapshotDate(snapshotDate);
+        if (rows < 1) {
+            throw new BusinessException(
+                    ErrorCode.SERVER_ERROR,
+                    MessageConstant.ASSET_SNAPSHOT_DELETE_FAILED
+            );
+        }
+    }
+
     private AssetSnapshot requireSnapshot(Long id) {
         if (id == null) {
             throw new BusinessException(

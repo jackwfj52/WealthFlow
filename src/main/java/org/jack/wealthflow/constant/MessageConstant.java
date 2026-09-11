@@ -34,6 +34,10 @@ public class MessageConstant {
     public static final String PENDING_ACTION_TYPE_MISMATCH = "待确认操作类型不匹配";
     public static final String SNAPSHOT_DRAFT_SERIALIZE_FAILED = "快照草案数据处理失败";
     public static final String SNAPSHOT_DRAFT_PARSE_FAILED = "快照草案数据已损坏，无法执行";
+    public static final String SNAPSHOT_DELETE_DATES_NOT_EMPTY = "要删除的快照日期不能为空";
+    public static final String SNAPSHOT_DELETE_DATES_DUPLICATE = "要删除的快照日期不能重复";
+    public static final String SNAPSHOT_DELETE_DATES_TOO_MANY = "一次最多删除30个日期的快照";
+    public static final String SNAPSHOT_DELETE_DATE_NOT_FOUND = "要删除的日期不存在快照";
 
     public static final String AI_PROVIDER_NOT_FOUND = "AI 提供商配置不存在";
     public static final String AI_PROVIDER_ID_EXISTS = "该提供商已配置";
@@ -58,6 +62,7 @@ public class MessageConstant {
     public static final String AGENT_HISTORY_ROLE_INVALID = "历史消息角色只能为 user 或 assistant";
     public static final String AGENT_HISTORY_CONTENT_INVALID = "历史消息内容不能超过2000个字符";
     public static final String AGENT_DRAFT_NOT_CREATED = "草案未生成：请检查日期、分类和金额后重试";
+    public static final String AGENT_DELETE_DRAFT_NOT_CREATED = "删除草案未生成：请检查要删除的日期是否真实存在快照";
     public static final String AGENT_REPLY_PARSE_FALLBACK = "我暂时无法可靠地解析这次请求，请补充日期、分类和金额后重试。";
 
     public static final String AI_MODEL_TIMEOUT = "模型服务响应超时，请稍后重试";
