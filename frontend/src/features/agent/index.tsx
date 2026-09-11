@@ -23,6 +23,7 @@ import {
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DeleteOutlined,
   FileAddOutlined,
   RobotOutlined,
   SendOutlined,
@@ -37,6 +38,7 @@ import { apiAgentActions } from '../../services/apiAgentActions';
 import type {
   PendingActionCancellationResult,
   CreateSnapshotDraftResult,
+  DeleteSnapshotDraftResult,
   PendingActionExecutionResult,
 } from '../../services/apiAgentActions';
 import { aiProviderService } from '../../services/apiAgentProviders';
@@ -60,6 +62,11 @@ interface DraftEntryFormValues {
   snapshotDate: dayjs.Dayjs;
   amounts?: Record<string, string | number | undefined>;
 }
+
+/** 待确认草案：创建与删除互斥，由后端保证同一响应中只有一个非空 */
+type PendingDraft =
+  | { kind: 'create'; data: CreateSnapshotDraftResult }
+  | { kind: 'delete'; data: DeleteSnapshotDraftResult };
 
 const SUGGESTIONS = [
   '我这个月为什么资产下降？',
@@ -90,14 +97,14 @@ const Agent: React.FC = () => {
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [sending, setSending] = useState(false);
 
-  const [draft, setDraft] = useState<CreateSnapshotDraftResult | null>(null);
+  const [draft, setDraft] = useState<PendingDraft | null>(null);
   const [execution, setExecution] = useState<PendingActionExecutionResult | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
   const executed = execution?.status === 'EXECUTED';
-  const cancelled = draft?.status === 'CANCELLED';
+  const cancelled = draft?.data.status === 'CANCELLED';
 
   useEffect(() => {
     let cancelledRequest = false;
@@ -167,9 +174,14 @@ const Agent: React.FC = () => {
       );
 
       if (result.draft) {
-        setDraft(result.draft);
+        setDraft({ kind: 'create', data: result.draft });
         setExecution(null);
         message.success('草案已生成，请核对后确认');
+      }
+      if (result.deleteDraft) {
+        setDraft({ kind: 'delete', data: result.deleteDraft });
+        setExecution(null);
+        message.success('删除草案已生成，请核对后确认');
       }
       if (result.draftError) {
         message.warning(result.draftError);
@@ -215,7 +227,7 @@ const Agent: React.FC = () => {
         items,
       });
 
-      setDraft(created);
+      setDraft({ kind: 'create', data: created });
       message.success('草案已生成，请核对后确认');
     } catch (err) {
       if (err instanceof Error) {
@@ -227,16 +239,22 @@ const Agent: React.FC = () => {
   };
 
   const confirmDraft = async () => {
-    if (!draft || draft.status !== 'PENDING' || confirming || cancelling) return;
+    if (!draft || draft.data.status !== 'PENDING' || confirming || cancelling) return;
 
     setConfirming(true);
     try {
-      const result = await apiAgentActions.confirmAction(draft.actionId);
+      const result =
+        draft.kind === 'delete'
+          ? await apiAgentActions.confirmDeleteAction(draft.data.actionId)
+          : await apiAgentActions.confirmAction(draft.data.actionId);
       setExecution(result);
 
       if (result.status === 'EXECUTED') {
         refreshSnapshots();
-        message.success(result.displaySummary || '快照已创建');
+        message.success(
+          result.displaySummary ||
+            (draft.kind === 'delete' ? '快照已删除' : '快照已创建')
+        );
       } else {
         message.warning(result.displaySummary || `操作未完成（${result.status}）`);
       }
@@ -250,23 +268,36 @@ const Agent: React.FC = () => {
   };
 
   const cancelDraft = async () => {
-    if (!draft || draft.status !== 'PENDING' || confirming || cancelling) return;
+    if (!draft || draft.data.status !== 'PENDING' || confirming || cancelling) return;
 
     setCancelling(true);
     try {
       const result: PendingActionCancellationResult =
-        await apiAgentActions.cancelAction(draft.actionId);
+        await apiAgentActions.cancelAction(draft.data.actionId);
 
-      setDraft((currentDraft) =>
-        currentDraft
-          ? {
-              ...currentDraft,
+      setDraft((currentDraft) => {
+        if (!currentDraft) return currentDraft;
+        if (currentDraft.kind === 'create') {
+          return {
+            kind: 'create' as const,
+            data: {
+              ...currentDraft.data,
               status: result.status,
               displaySummary: result.displaySummary,
               expiresAt: result.expiresAt,
-            }
-          : currentDraft
-      );
+            },
+          };
+        }
+        return {
+          kind: 'delete' as const,
+          data: {
+            ...currentDraft.data,
+            status: result.status,
+            displaySummary: result.displaySummary,
+            expiresAt: result.expiresAt,
+          },
+        };
+      });
       message.success(result.displaySummary || '草案已取消');
     } catch (err) {
       if (err instanceof Error) {
@@ -431,7 +462,11 @@ const Agent: React.FC = () => {
                 <Space align="start">
                   <CheckCircleOutlined style={{ color: token.colorSuccess }} />
                   <div>
-                    <Text strong>创建资产快照</Text>
+                    <Text strong>
+                      {execution.actionType === 'DELETE_SNAPSHOT'
+                        ? '删除资产快照'
+                        : '创建资产快照'}
+                    </Text>
                     <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
                       {execution.displaySummary}
                     </Paragraph>
@@ -473,58 +508,85 @@ const Agent: React.FC = () => {
                 <Space align="start">
                   {cancelled ? (
                     <CloseCircleOutlined style={{ color: token.colorTextSecondary }} />
+                  ) : draft.kind === 'delete' ? (
+                    <DeleteOutlined style={{ color: token.colorError }} />
                   ) : (
                     <WarningOutlined style={{ color: token.colorWarning }} />
                   )}
                   <div>
-                    <Text strong>创建资产快照</Text>
+                    <Text strong>
+                      {draft.kind === 'delete' ? '删除资产快照' : '创建资产快照'}
+                    </Text>
                     <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
                       {cancelled
-                        ? '该草案已取消，不会写入任何资产数据。'
-                        : draft.displaySummary}
+                        ? draft.kind === 'delete'
+                          ? '该草案已取消，不会删除任何资产数据。'
+                          : '该草案已取消，不会写入任何资产数据。'
+                        : draft.data.displaySummary}
                     </Paragraph>
                   </div>
                 </Space>
 
                 <Card size="small" style={{ background: token.colorFillAlter }}>
                   <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                    <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                      <Text type="secondary">快照日期</Text>
-                      <Text strong>{draft.snapshotDate}</Text>
-                    </Space>
-                    <Divider style={{ margin: 0 }} />
-                    {draft.items.map((item) => (
-                      <Space
-                        key={item.categoryId}
-                        style={{ justifyContent: 'space-between', width: '100%' }}
-                      >
-                        <Text>{item.categoryName}</Text>
-                        <AmountText amount={item.amount} />
-                      </Space>
-                    ))}
-                    <Divider style={{ margin: 0 }} />
-                    <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                      <Text strong>合计</Text>
-                      <AmountText amount={draft.totalAmount} style={{ fontSize: 16 }} />
-                    </Space>
+                    {draft.kind === 'create' ? (
+                      <>
+                        <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                          <Text type="secondary">快照日期</Text>
+                          <Text strong>{draft.data.snapshotDate}</Text>
+                        </Space>
+                        <Divider style={{ margin: 0 }} />
+                        {draft.data.items.map((item) => (
+                          <Space
+                            key={item.categoryId}
+                            style={{ justifyContent: 'space-between', width: '100%' }}
+                          >
+                            <Text>{item.categoryName}</Text>
+                            <AmountText amount={item.amount} />
+                          </Space>
+                        ))}
+                        <Divider style={{ margin: 0 }} />
+                        <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                          <Text strong>合计</Text>
+                          <AmountText amount={draft.data.totalAmount} style={{ fontSize: 16 }} />
+                        </Space>
+                      </>
+                    ) : (
+                      draft.data.items.map((item) => (
+                        <Space
+                          key={item.snapshotDate}
+                          style={{ justifyContent: 'space-between', width: '100%' }}
+                        >
+                          <Text>{item.snapshotDate} 快照</Text>
+                          <AmountText amount={item.totalAmount} />
+                        </Space>
+                      ))
+                    )}
                   </Space>
                 </Card>
 
-                {draft.status === 'PENDING' ? (
+                {draft.data.status === 'PENDING' ? (
                   <Space style={{ width: '100%' }}>
                     <Button
                       type="primary"
+                      danger={draft.kind === 'delete'}
                       block
-                      icon={<CheckCircleOutlined />}
+                      icon={
+                        draft.kind === 'delete' ? (
+                          <DeleteOutlined />
+                        ) : (
+                          <CheckCircleOutlined />
+                        )
+                      }
                       loading={confirming}
                       disabled={confirming || cancelling}
                       onClick={confirmDraft}
                     >
-                      确认创建
+                      {draft.kind === 'delete' ? '确认删除（不可恢复）' : '确认创建'}
                     </Button>
                     <Button
                       block
-                      danger
+                      danger={draft.kind !== 'delete'}
                       icon={<CloseCircleOutlined />}
                       loading={cancelling}
                       disabled={confirming || cancelling}
@@ -540,7 +602,8 @@ const Agent: React.FC = () => {
                 )}
 
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  操作编号：{draft.actionId} · 有效期至 {draft.expiresAt.replace('T', ' ')}
+                  操作编号：{draft.data.actionId} · 有效期至{' '}
+                  {draft.data.expiresAt.replace('T', ' ')}
                 </Text>
               </Space>
             ) : (

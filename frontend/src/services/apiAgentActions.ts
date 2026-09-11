@@ -47,6 +47,22 @@ export interface CreateSnapshotDraftResult {
   totalAmount: string;
 }
 
+/** 删除草案中单个日期及其现有快照合计（仅用于展示） */
+export interface DeleteSnapshotDraftItem {
+  snapshotDate: string;
+  totalAmount: string;
+}
+
+/** 删除快照草案响应：待确认卡渲染所需字段 */
+export interface DeleteSnapshotDraftResult {
+  actionId: string;
+  actionType: PendingActionType;
+  status: PendingActionStatus;
+  displaySummary: string;
+  expiresAt: string;
+  items: DeleteSnapshotDraftItem[];
+}
+
 /** 确认执行结果：snapshot 仅在 status 为 EXECUTED 时存在 */
 export interface PendingActionExecutionResult {
   actionId: string;
@@ -82,6 +98,16 @@ export const apiAgentActions = {
   ): Promise<PendingActionExecutionResult> {
     return apiClient.post<PendingActionExecutionResult>(
       `/agent/actions/${actionId}/confirm`,
+      {}
+    );
+  },
+
+  /** 确认执行删除快照待确认操作 */
+  async confirmDeleteAction(
+    actionId: string
+  ): Promise<PendingActionExecutionResult> {
+    return apiClient.post<PendingActionExecutionResult>(
+      `/agent/actions/${actionId}/confirm-delete`,
       {}
     );
   },

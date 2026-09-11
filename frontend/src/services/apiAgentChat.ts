@@ -6,7 +6,10 @@
  * 待确认草案，仍须用户点击确认才会写入。
  */
 import { apiClient } from './apiClient';
-import type { CreateSnapshotDraftResult } from './apiAgentActions';
+import type {
+  CreateSnapshotDraftResult,
+  DeleteSnapshotDraftResult,
+} from './apiAgentActions';
 
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
@@ -19,10 +22,14 @@ export interface AgentChatPayload {
   history: AgentChatMessage[];
 }
 
-/** 聊天响应：draft 仅在模型建议创建快照且后端校验通过时非空 */
+/**
+ * 聊天响应：draft / deleteDraft 仅在模型建议对应操作且后端校验通过时非空（两者互斥）；
+ * draftError 在草案无法创建时给出用户友好提示。
+ */
 export interface AgentChatResult {
   reply: string;
   draft: CreateSnapshotDraftResult | null;
+  deleteDraft: DeleteSnapshotDraftResult | null;
   draftError: string | null;
 }
 
