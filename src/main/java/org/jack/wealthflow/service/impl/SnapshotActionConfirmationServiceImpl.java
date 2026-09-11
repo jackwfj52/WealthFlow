@@ -33,4 +33,18 @@ public class SnapshotActionConfirmationServiceImpl
 
         return snapshotActionExecutionService.executeCreateSnapshot(pendingAction);
     }
+
+    @Override
+    public PendingActionExecutionResponse confirmDeleteSnapshots(String actionId) {
+        PendingAction pendingAction = pendingActionService.getPendingById(actionId);
+
+        if (pendingAction.getActionType() != PendingActionType.DELETE_SNAPSHOT) {
+            throw new BusinessException(
+                    ErrorCode.PENDING_ACTION_TYPE_MISMATCH,
+                    MessageConstant.PENDING_ACTION_TYPE_MISMATCH
+            );
+        }
+
+        return snapshotActionExecutionService.executeDeleteSnapshots(pendingAction);
+    }
 }

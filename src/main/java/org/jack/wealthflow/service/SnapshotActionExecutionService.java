@@ -12,4 +12,6 @@ import org.jack.wealthflow.model.PendingAction;
 public interface SnapshotActionExecutionService {
 
     PendingActionExecutionResponse executeCreateSnapshot(PendingAction pendingAction);
+
+    PendingActionExecutionResponse executeDeleteSnapshots(PendingAction pendingAction);
 }

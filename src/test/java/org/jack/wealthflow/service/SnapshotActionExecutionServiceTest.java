@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.jack.wealthflow.dto.AssetSnapshotResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
+import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
 import org.jack.wealthflow.dto.PendingActionExecutionResponse;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -166,6 +168,130 @@ class SnapshotActionExecutionServiceTest {
                 BusinessException.class,
                 () -> executionService.executeCreateSnapshot(
                         pendingAction(payloadJson)
+                )
+        );
+
+        verify(pendingActionService, never()).markExecuted(anyString());
+    }
+
+    private PendingAction deletePendingAction(String payloadJson) {
+        PendingAction pendingAction = new PendingAction();
+        pendingAction.setId("action-del");
+        pendingAction.setActionType(PendingActionType.DELETE_SNAPSHOT);
+        pendingAction.setStatus(PendingActionStatus.PENDING);
+        pendingAction.setPayloadJson(payloadJson);
+        pendingAction.setDisplaySummary(
+                "将删除 2026-08-01、2026-08-02 共 2 天的资产快照，删除后不可恢复"
+        );
+        return pendingAction;
+    }
+
+    @Test
+    void shouldExecuteDeleteSnapshotsAndMarkExecuted() throws Exception {
+        LocalDate firstDate = LocalDate.of(2026, 8, 1);
+        LocalDate secondDate = LocalDate.of(2026, 8, 2);
+
+        String payloadJson = objectMapper.writeValueAsString(
+                new DeleteSnapshotDraftRequest(
+                        List.of(firstDate, secondDate)
+                )
+        );
+
+        PendingAction claimed = deletePendingAction(payloadJson);
+        claimed.setStatus(PendingActionStatus.EXECUTING);
+        when(pendingActionService.claimForExecution("action-del"))
+                .thenReturn(claimed);
+
+        PendingAction executed = deletePendingAction(payloadJson);
+        executed.setStatus(PendingActionStatus.EXECUTED);
+        when(pendingActionService.markExecuted("action-del"))
+                .thenReturn(executed);
+
+        PendingActionExecutionResponse result = executionService
+                .executeDeleteSnapshots(deletePendingAction(payloadJson));
+
+        assertEquals("action-del", result.actionId());
+        assertEquals(PendingActionType.DELETE_SNAPSHOT, result.actionType());
+        assertEquals(PendingActionStatus.EXECUTED, result.status());
+        assertEquals(null, result.snapshot());
+
+        verify(assetSnapshotService).deleteBySnapshotDate(firstDate);
+        verify(assetSnapshotService).deleteBySnapshotDate(secondDate);
+        verify(pendingActionService).markExecuted("action-del");
+    }
+
+    @Test
+    void shouldRejectInvalidDeletePayloadJson() {
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> {
+                    PendingAction pending = deletePendingAction("not-a-json{{{");
+                    PendingAction claimed = deletePendingAction("not-a-json{{{");
+                    claimed.setStatus(PendingActionStatus.EXECUTING);
+                    when(pendingActionService.claimForExecution("action-del"))
+                            .thenReturn(claimed);
+
+                    executionService.executeDeleteSnapshots(pending);
+                }
+        );
+
+        assertEquals(
+                ErrorCode.SNAPSHOT_DRAFT_PARSE_FAILED,
+                exception.getErrorCode()
+        );
+
+        verify(assetSnapshotService, never())
+                .deleteBySnapshotDate(any(LocalDate.class));
+        verify(pendingActionService, never()).markExecuted(anyString());
+    }
+
+    @Test
+    void shouldRejectDeletePayloadWithoutDates() {
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> {
+                    PendingAction pending = deletePendingAction("{}");
+                    PendingAction claimed = deletePendingAction("{}");
+                    claimed.setStatus(PendingActionStatus.EXECUTING);
+                    when(pendingActionService.claimForExecution("action-del"))
+                            .thenReturn(claimed);
+
+                    executionService.executeDeleteSnapshots(pending);
+                }
+        );
+
+        assertEquals(
+                ErrorCode.SNAPSHOT_DRAFT_PARSE_FAILED,
+                exception.getErrorCode()
+        );
+
+        verify(assetSnapshotService, never())
+                .deleteBySnapshotDate(any(LocalDate.class));
+        verify(pendingActionService, never()).markExecuted(anyString());
+    }
+
+    @Test
+    void shouldNotMarkExecutedWhenDeleteFails() throws Exception {
+        LocalDate firstDate = LocalDate.of(2026, 8, 1);
+
+        String payloadJson = objectMapper.writeValueAsString(
+                new DeleteSnapshotDraftRequest(List.of(firstDate))
+        );
+
+        doThrow(new BusinessException(
+                ErrorCode.SNAPSHOT_NOT_FOUND,
+                "该资产快照不存在"
+        )).when(assetSnapshotService).deleteBySnapshotDate(firstDate);
+
+        PendingAction claimed = deletePendingAction(payloadJson);
+        claimed.setStatus(PendingActionStatus.EXECUTING);
+        when(pendingActionService.claimForExecution("action-del"))
+                .thenReturn(claimed);
+
+        assertThrows(
+                BusinessException.class,
+                () -> executionService.executeDeleteSnapshots(
+                        deletePendingAction(payloadJson)
                 )
         );
 

@@ -93,4 +93,59 @@ class SnapshotActionConfirmationServiceTest {
         verify(snapshotActionExecutionService, never())
                 .executeCreateSnapshot(any());
     }
+
+    @Test
+    void shouldConfirmDeleteSnapshots() {
+        PendingAction pendingAction = new PendingAction();
+        pendingAction.setId("action-3");
+        pendingAction.setActionType(PendingActionType.DELETE_SNAPSHOT);
+        pendingAction.setStatus(PendingActionStatus.PENDING);
+
+        when(pendingActionService.getPendingById("action-3"))
+                .thenReturn(pendingAction);
+
+        PendingActionExecutionResponse expected =
+                new PendingActionExecutionResponse(
+                        "action-3",
+                        PendingActionType.DELETE_SNAPSHOT,
+                        PendingActionStatus.EXECUTED,
+                        "将删除 2026-08-01 共 1 天的资产快照，删除后不可恢复",
+                        null
+                );
+
+        when(snapshotActionExecutionService
+                .executeDeleteSnapshots(pendingAction))
+                .thenReturn(expected);
+
+        PendingActionExecutionResponse result =
+                confirmationService.confirmDeleteSnapshots("action-3");
+
+        assertEquals(expected, result);
+        verify(snapshotActionExecutionService)
+                .executeDeleteSnapshots(pendingAction);
+    }
+
+    @Test
+    void shouldRejectNonDeleteSnapshotAction() {
+        PendingAction pendingAction = new PendingAction();
+        pendingAction.setId("action-4");
+        pendingAction.setActionType(PendingActionType.CREATE_SNAPSHOT);
+        pendingAction.setStatus(PendingActionStatus.PENDING);
+
+        when(pendingActionService.getPendingById("action-4"))
+                .thenReturn(pendingAction);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> confirmationService.confirmDeleteSnapshots("action-4")
+        );
+
+        assertEquals(
+                ErrorCode.PENDING_ACTION_TYPE_MISMATCH,
+                exception.getErrorCode()
+        );
+
+        verify(snapshotActionExecutionService, never())
+                .executeDeleteSnapshots(any());
+    }
 }

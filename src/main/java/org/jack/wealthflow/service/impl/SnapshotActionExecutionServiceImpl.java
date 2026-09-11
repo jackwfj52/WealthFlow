@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.dto.AssetSnapshotResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
+import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
 import org.jack.wealthflow.dto.PendingActionExecutionResponse;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
@@ -18,6 +19,7 @@ import org.jack.wealthflow.service.SnapshotActionExecutionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -68,6 +70,58 @@ public class SnapshotActionExecutionServiceImpl implements SnapshotActionExecuti
             );
 
             if (request == null) {
+                throw parseFailed();
+            }
+
+            return request;
+        } catch (JsonProcessingException exception) {
+            throw parseFailed();
+        }
+    }
+
+    /**
+     * 在单个事务内逐日删除快照并标记状态：
+     * 任一日删除失败或状态更新失败，整体回滚。
+     */
+    @Override
+    @Transactional
+    public PendingActionExecutionResponse executeDeleteSnapshots(
+            PendingAction pendingAction
+    ) {
+        PendingAction claimed = pendingActionService.claimForExecution(
+                pendingAction.getId()
+        );
+
+        DeleteSnapshotDraftRequest request = parseDeletePayload(claimed);
+
+        for (LocalDate snapshotDate : request.snapshotDates()) {
+            assetSnapshotService.deleteBySnapshotDate(snapshotDate);
+        }
+
+        PendingAction executed =
+                pendingActionService.markExecuted(claimed.getId());
+
+        return new PendingActionExecutionResponse(
+                executed.getId(),
+                executed.getActionType(),
+                executed.getStatus(),
+                executed.getDisplaySummary(),
+                null
+        );
+    }
+
+    private DeleteSnapshotDraftRequest parseDeletePayload(
+            PendingAction pendingAction
+    ) {
+        try {
+            DeleteSnapshotDraftRequest request = objectMapper.readValue(
+                    pendingAction.getPayloadJson(),
+                    DeleteSnapshotDraftRequest.class
+            );
+
+            if (request == null
+                    || request.snapshotDates() == null
+                    || request.snapshotDates().isEmpty()) {
                 throw parseFailed();
             }
 

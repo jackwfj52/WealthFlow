@@ -10,4 +10,6 @@ import org.jack.wealthflow.dto.PendingActionExecutionResponse;
 public interface SnapshotActionConfirmationService {
 
     PendingActionExecutionResponse confirmCreateSnapshot(String actionId);
+
+    PendingActionExecutionResponse confirmDeleteSnapshots(String actionId);
 }
