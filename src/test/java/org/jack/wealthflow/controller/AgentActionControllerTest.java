@@ -134,6 +134,44 @@ class AgentActionControllerTest {
     }
 
     @Test
+    void shouldConfirmDeleteActionAndReturn200() throws Exception {
+        PendingActionExecutionResponse result =
+                new PendingActionExecutionResponse(
+                        "action-del",
+                        PendingActionType.DELETE_SNAPSHOT,
+                        PendingActionStatus.EXECUTED,
+                        "将删除 2026-08-01 共 1 天的资产快照，删除后不可恢复",
+                        null
+                );
+
+        when(snapshotActionConfirmationService.confirmDeleteSnapshots("action-del"))
+                .thenReturn(result);
+
+        mockMvc.perform(post("/api/v1/agent/actions/action-del/confirm-delete"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.actionId").value("action-del"))
+                .andExpect(jsonPath("$.data.actionType").value("DELETE_SNAPSHOT"))
+                .andExpect(jsonPath("$.data.status").value("EXECUTED"));
+    }
+
+    @Test
+    void shouldReturnTypeMismatchWhenConfirmDeleteOnCreateAction()
+            throws Exception {
+        when(snapshotActionConfirmationService.confirmDeleteSnapshots("action-1"))
+                .thenThrow(new BusinessException(
+                        ErrorCode.PENDING_ACTION_TYPE_MISMATCH,
+                        ErrorCode.PENDING_ACTION_TYPE_MISMATCH.getMessage()
+                ));
+
+        mockMvc.perform(post("/api/v1/agent/actions/action-1/confirm-delete"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code")
+                        .value(ErrorCode.PENDING_ACTION_TYPE_MISMATCH.getCode()))
+                .andExpect(jsonPath("$.message").value("待确认操作类型不匹配"));
+    }
+
+    @Test
     void shouldCancelActionAndReturn200() throws Exception {
         PendingAction cancelled = new PendingAction();
         cancelled.setId("action-1");

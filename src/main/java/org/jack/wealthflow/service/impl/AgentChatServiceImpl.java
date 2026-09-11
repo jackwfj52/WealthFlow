@@ -2,6 +2,7 @@ package org.jack.wealthflow.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.agent.AgentPromptFactory;
+import org.jack.wealthflow.agent.ModelDeleteProposal;
 import org.jack.wealthflow.agent.ModelReply;
 import org.jack.wealthflow.agent.ModelReplyParser;
 import org.jack.wealthflow.agent.ModelSnapshotProposal;
@@ -11,6 +12,8 @@ import org.jack.wealthflow.dto.AgentChatRequest;
 import org.jack.wealthflow.dto.AgentChatResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
 import org.jack.wealthflow.dto.CreateSnapshotDraftResponse;
+import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
+import org.jack.wealthflow.dto.DeleteSnapshotDraftResponse;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.exception.ErrorCode;
@@ -26,9 +29,9 @@ import java.util.List;
 /**
  * 聊天处理流程。
  *
- * <p>模型只能产生普通回答或创建快照草案建议；
+ * <p>模型只能产生普通回答、创建快照草案或删除快照草案建议；
  * 草案由 SnapshotDraftService 校验并创建为 PENDING 待确认操作，
- * 真正写入 SQLite 只发生在用户点击确认后（独立确认接口）。
+ * 真正写入/删除 SQLite 数据只发生在用户点击确认后（独立确认接口）。
  * 本服务绝不调用确认/执行接口，也绝不直接写入快照数据。</p>
  */
 @Service
@@ -70,23 +73,58 @@ public class AgentChatServiceImpl implements AgentChatService {
         ModelReply modelReply = modelReplyParser.parse(rawOutput);
 
         if (ModelReply.KIND_ANSWER.equals(modelReply.kind())) {
-            return new AgentChatResponse(modelReply.reply(), null, null);
+            return new AgentChatResponse(modelReply.reply(), null, null, null);
         }
 
-        ModelSnapshotProposal proposal = modelReply.proposal();
-        try {
-            CreateSnapshotDraftResponse draft = snapshotDraftService
-                    .createSnapshotDraft(toDraftRequest(proposal));
+        if (ModelReply.KIND_PROPOSE_CREATE_SNAPSHOT.equals(modelReply.kind())
+                && modelReply.proposal() instanceof ModelSnapshotProposal proposal) {
+            try {
+                CreateSnapshotDraftResponse draft = snapshotDraftService
+                        .createSnapshotDraft(toDraftRequest(proposal));
 
-            return new AgentChatResponse(modelReply.reply(), draft, null);
-        } catch (BusinessException exception) {
-            // 草案校验失败：不创建草案，返回普通回答与友好提示
-            return new AgentChatResponse(
-                    modelReply.reply(),
-                    null,
-                    MessageConstant.AGENT_DRAFT_NOT_CREATED
-            );
+                return new AgentChatResponse(modelReply.reply(), draft, null, null);
+            } catch (BusinessException exception) {
+                // 草案校验失败：不创建草案，返回普通回答与友好提示
+                return new AgentChatResponse(
+                        modelReply.reply(),
+                        null,
+                        null,
+                        MessageConstant.AGENT_DRAFT_NOT_CREATED
+                );
+            }
         }
+
+        if (ModelReply.KIND_PROPOSE_DELETE_SNAPSHOTS.equals(modelReply.kind())
+                && modelReply.proposal() instanceof ModelDeleteProposal deleteProposal) {
+            try {
+                DeleteSnapshotDraftResponse deleteDraft = snapshotDraftService
+                        .createDeleteSnapshotDraft(toDeleteDraftRequest(deleteProposal));
+
+                return new AgentChatResponse(
+                        modelReply.reply(),
+                        null,
+                        deleteDraft,
+                        null
+                );
+            } catch (BusinessException exception) {
+                // 删除草案校验失败：不创建草案，返回普通回答与友好提示
+                return new AgentChatResponse(
+                        modelReply.reply(),
+                        null,
+                        null,
+                        MessageConstant.AGENT_DELETE_DRAFT_NOT_CREATED
+                );
+            }
+        }
+
+        // 类型不匹配的异常提案（理论上被解析器拦截）：降级为普通回答
+        return new AgentChatResponse(modelReply.reply(), null, null, null);
+    }
+
+    private DeleteSnapshotDraftRequest toDeleteDraftRequest(
+            ModelDeleteProposal proposal
+    ) {
+        return new DeleteSnapshotDraftRequest(proposal.snapshotDates());
     }
 
     private CreateSnapshotDraftRequest toDraftRequest(

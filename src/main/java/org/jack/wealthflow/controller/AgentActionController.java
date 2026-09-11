@@ -55,6 +55,16 @@ public class AgentActionController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    @PostMapping("/{actionId}/confirm-delete")
+    public ResponseEntity<ApiResponse<PendingActionExecutionResponse>> confirmDelete(
+            @PathVariable String actionId
+    ) {
+        PendingActionExecutionResponse result =
+                snapshotActionConfirmationService.confirmDeleteSnapshots(actionId);
+
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @PostMapping("/{actionId}/cancel")
     public ResponseEntity<ApiResponse<PendingActionCancellationResponse>> cancel(
             @PathVariable String actionId

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.jack.wealthflow.dto.AgentChatResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftResponse;
+import org.jack.wealthflow.dto.DeleteSnapshotDraftItem;
+import org.jack.wealthflow.dto.DeleteSnapshotDraftResponse;
 import org.jack.wealthflow.dto.SnapshotItem;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.exception.ErrorCode;
@@ -61,7 +63,7 @@ class AgentChatControllerTest {
     @Test
     void shouldReturnChatReply() throws Exception {
         when(agentChatService.chat(any())).thenReturn(
-                new AgentChatResponse("你好，有什么可以帮你？", null, null)
+                new AgentChatResponse("你好，有什么可以帮你？", null, null, null)
         );
 
         mockMvc.perform(post("/api/v1/agent/chat")
@@ -78,6 +80,7 @@ class AgentChatControllerTest {
                 .andExpect(jsonPath("$.data.reply")
                         .value("你好，有什么可以帮你？"))
                 .andExpect(jsonPath("$.data.draft").isEmpty())
+                .andExpect(jsonPath("$.data.deleteDraft").isEmpty())
                 .andExpect(jsonPath("$.data.draftError").isEmpty());
     }
 
@@ -86,6 +89,7 @@ class AgentChatControllerTest {
         when(agentChatService.chat(any())).thenReturn(
                 new AgentChatResponse(
                         "将创建今天的资产快照，请确认。",
+                        null,
                         null,
                         "草案未生成：请检查日期、分类和金额后重试"
                 )
@@ -99,6 +103,7 @@ class AgentChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reply").value("将创建今天的资产快照，请确认。"))
                 .andExpect(jsonPath("$.data.draft").isEmpty())
+                .andExpect(jsonPath("$.data.deleteDraft").isEmpty())
                 .andExpect(jsonPath("$.data.draftError")
                         .value("草案未生成：请检查日期、分类和金额后重试"));
     }
@@ -122,7 +127,7 @@ class AgentChatControllerTest {
         );
 
         when(agentChatService.chat(any())).thenReturn(
-                new AgentChatResponse("将创建快照，请确认。", draft, null)
+                new AgentChatResponse("将创建快照，请确认。", draft, null, null)
         );
 
         mockMvc.perform(post("/api/v1/agent/chat")
@@ -143,6 +148,57 @@ class AgentChatControllerTest {
                 .andExpect(jsonPath("$.data.draft.items[0].amount")
                         .value("5000.00"))
                 .andExpect(jsonPath("$.data.draft.totalAmount")
+                        .value("5000.00"))
+                .andExpect(jsonPath("$.data.deleteDraft").isEmpty())
+                .andExpect(jsonPath("$.data.draftError").isEmpty());
+    }
+
+    @Test
+    void shouldSerializeDeleteDraftFieldsAsFrontendExpects() throws Exception {
+        DeleteSnapshotDraftItem item = new DeleteSnapshotDraftItem(
+                "2026-08-31",
+                new BigDecimal("5000.00")
+        );
+
+        DeleteSnapshotDraftResponse deleteDraft =
+                new DeleteSnapshotDraftResponse(
+                        "action-del",
+                        PendingActionType.DELETE_SNAPSHOT,
+                        PendingActionStatus.PENDING,
+                        "将删除 2026-08-31 共 1 天的资产快照，删除后不可恢复",
+                        "2026-08-31T10:00:00",
+                        List.of(item)
+                );
+
+        when(agentChatService.chat(any())).thenReturn(
+                new AgentChatResponse(
+                        "将删除快照，确认后才会删除且不可恢复。",
+                        null,
+                        deleteDraft,
+                        null
+                )
+        );
+
+        mockMvc.perform(post("/api/v1/agent/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "providerId": "openai", "message": "删除快照" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reply")
+                        .value("将删除快照，确认后才会删除且不可恢复。"))
+                .andExpect(jsonPath("$.data.draft").isEmpty())
+                .andExpect(jsonPath("$.data.deleteDraft.actionId")
+                        .value("action-del"))
+                .andExpect(jsonPath("$.data.deleteDraft.actionType")
+                        .value("DELETE_SNAPSHOT"))
+                .andExpect(jsonPath("$.data.deleteDraft.status")
+                        .value("PENDING"))
+                .andExpect(jsonPath("$.data.deleteDraft.displaySummary")
+                        .value("将删除 2026-08-31 共 1 天的资产快照，删除后不可恢复"))
+                .andExpect(jsonPath("$.data.deleteDraft.items[0].snapshotDate")
+                        .value("2026-08-31"))
+                .andExpect(jsonPath("$.data.deleteDraft.items[0].totalAmount")
                         .value("5000.00"))
                 .andExpect(jsonPath("$.data.draftError").isEmpty());
     }

@@ -512,6 +512,134 @@ class AgentChatServiceImplTest {
         );
     }
 
+    // ---------- 删除快照草案 ----------
+
+    @Test
+    void shouldCreateDeleteDraftFromValidProposalWithoutDeletingSnapshot() {
+        stubConnection();
+        stubCategoryList();
+        LocalDate date = LocalDate.of(2026, 8, 31);
+        when(assetCategoryMapper.findById(1L))
+                .thenReturn(category(1L, "现金"));
+        when(assetSnapshotMapper.findAll())
+                .thenReturn(List.of(existingSnapshot(date)));
+
+        PendingAction deleteAction = new PendingAction();
+        deleteAction.setId("action-del");
+        deleteAction.setActionType(PendingActionType.DELETE_SNAPSHOT);
+        deleteAction.setStatus(PendingActionStatus.PENDING);
+        deleteAction.setDisplaySummary(
+                "将删除 2026-08-31 共 1 天的资产快照，删除后不可恢复"
+        );
+        deleteAction.setExpiresAt("2026-08-31T10:00:00");
+
+        when(pendingActionService.create(
+                eq(PendingActionType.DELETE_SNAPSHOT),
+                anyString(),
+                anyString()
+        )).thenReturn(deleteAction);
+
+        when(aiModelGateway.complete(
+                anyString(), anyString(), anyString(), anyString(), anyList()
+        )).thenReturn("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除 2026-08-31 的快照，确认后才会删除且不可恢复。",
+                  "proposal": {
+                    "snapshotDates": ["2026-08-31"]
+                  }
+                }
+                """);
+
+        AgentChatResponse response = agentChatService.chat(
+                request("删除 2026-08-31 的快照")
+        );
+
+        assertEquals(
+                "将删除 2026-08-31 的快照，确认后才会删除且不可恢复。",
+                response.reply()
+        );
+        assertNull(response.draft());
+        assertNull(response.draftError());
+        assertNotNull(response.deleteDraft());
+        assertEquals("action-del", response.deleteDraft().actionId());
+        assertEquals(
+                PendingActionType.DELETE_SNAPSHOT,
+                response.deleteDraft().actionType()
+        );
+        assertEquals(
+                PendingActionStatus.PENDING,
+                response.deleteDraft().status()
+        );
+        assertEquals(1, response.deleteDraft().items().size());
+        assertEquals("2026-08-31",
+                response.deleteDraft().items().get(0).snapshotDate());
+        assertEquals(new BigDecimal("5000.00"),
+                response.deleteDraft().items().get(0).totalAmount());
+
+        // 只创建了待确认删除草案，未删除任何快照数据
+        verify(assetSnapshotMapper, never()).deleteBySnapshotDate(any(LocalDate.class));
+    }
+
+    @Test
+    void shouldReturnDeleteDraftErrorWhenDateHasNoSnapshot() {
+        stubConnection();
+        stubCategoryList();
+        when(assetSnapshotMapper.findAll()).thenReturn(List.of());
+        when(aiModelGateway.complete(
+                anyString(), anyString(), anyString(), anyString(), anyList()
+        )).thenReturn("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除 2026-08-31 的快照。",
+                  "proposal": {
+                    "snapshotDates": ["2026-08-31"]
+                  }
+                }
+                """);
+
+        AgentChatResponse response = agentChatService.chat(
+                request("删除 2026-08-31 的快照")
+        );
+
+        assertEquals("将删除 2026-08-31 的快照。", response.reply());
+        assertNull(response.deleteDraft());
+        assertEquals(MessageConstant.AGENT_DELETE_DRAFT_NOT_CREATED,
+                response.draftError());
+        verify(pendingActionService, never()).create(
+                any(PendingActionType.class), anyString(), anyString()
+        );
+        verify(assetSnapshotMapper, never()).deleteBySnapshotDate(any(LocalDate.class));
+    }
+
+    @Test
+    void shouldReturnFallbackReplyOnMalformedDeleteProposal() {
+        stubConnection();
+        when(aiModelGateway.complete(
+                anyString(), anyString(), anyString(), anyString(), anyList()
+        )).thenReturn("""
+                {
+                  "kind": "propose_delete_snapshots",
+                  "reply": "将删除快照。",
+                  "proposal": {
+                    "snapshotDates": ["2026-08-31", "2026-08-31"]
+                  }
+                }
+                """);
+
+        AgentChatResponse response = agentChatService.chat(
+                request("删除快照")
+        );
+
+        assertEquals(MessageConstant.AGENT_REPLY_PARSE_FALLBACK,
+                response.reply());
+        assertNull(response.deleteDraft());
+        assertNull(response.draftError());
+        verify(pendingActionService, never()).create(
+                any(PendingActionType.class), anyString(), anyString()
+        );
+    }
+
     // ---------- 网关错误 ----------
 
     @Test
