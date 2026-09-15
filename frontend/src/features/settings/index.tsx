@@ -502,7 +502,7 @@ const Settings: React.FC = () => {
               {sysInfo.categoryCount}
             </Descriptions.Item>
             <Descriptions.Item label="快照记录数">
-              {sysInfo.snapshotRowCount}
+              {sysInfo.snapshotDateCount}
             </Descriptions.Item>
             <Descriptions.Item label="最近快照日期">
               {latestDate ?? '暂无'}

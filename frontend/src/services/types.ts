@@ -41,7 +41,8 @@ export interface SnapshotBatchEntry {
 export interface SystemInfo {
   dbPath: string;
   categoryCount: number;
-  snapshotRowCount: number;
+  /** 快照日期数（一个日期算一条快照） */
+  snapshotDateCount: number;
 }
 
 export interface SystemService {

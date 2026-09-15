@@ -26,7 +26,7 @@ public class SystemServiceImpl implements SystemService {
         return new SystemInfoResponse(
                 resolveDbPath(),
                 assetCategoryMapper.count(),
-                assetSnapshotMapper.count()
+                assetSnapshotMapper.countSnapshotDates()
         );
     }
 

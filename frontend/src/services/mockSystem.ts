@@ -16,10 +16,7 @@ export const systemService: SystemService = {
     return {
       dbPath: '浏览器 localStorage（Mock 模式）',
       categoryCount: categories.length,
-      snapshotRowCount: snapshots.reduce(
-        (acc: number, s) => acc + s.items.length,
-        0,
-      ),
+      snapshotDateCount: snapshots.length,
     };
   },
 

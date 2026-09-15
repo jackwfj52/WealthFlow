@@ -27,7 +27,8 @@ public interface AssetSnapshotMapper {
             @Param("id") Long id
     );
 
-    long count();
+    /** 快照日期数（一个日期算一条快照） */
+    long countSnapshotDates();
 
     int deleteAll();
 }

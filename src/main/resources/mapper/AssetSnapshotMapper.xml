@@ -62,8 +62,8 @@
           AND id != #{id}
     </delete>
 
-    <select id="count" resultType="long">
-        SELECT COUNT(*) FROM asset_snapshot
+    <select id="countSnapshotDates" resultType="long">
+        SELECT COUNT(DISTINCT snapshot_date) FROM asset_snapshot
     </select>
 
     <delete id="deleteAll">

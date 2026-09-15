@@ -6,6 +6,6 @@ package org.jack.wealthflow.dto;
 public record SystemInfoResponse(
         String dbPath,
         long categoryCount,
-        long snapshotRowCount
+        long snapshotDateCount
 ) {
 }
