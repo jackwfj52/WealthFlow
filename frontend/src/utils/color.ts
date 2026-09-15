@@ -28,6 +28,16 @@ export function isValidHexColor(value: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
+/** 按背景色亮度返回对比文字色：亮背景用深字，暗背景用白字 */
+export function contrastTextColor(hex: string): string {
+  const h = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#fff';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  // 相对亮度（sRGB 近似）
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.55 ? 'rgba(0, 0, 0, 0.75)' : '#fff';
+}
+
 /** 取分类实际颜色：未设置时按位置回退调色板 */
 export function getCategoryColor(
   category: { color?: string } | undefined,

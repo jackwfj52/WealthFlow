@@ -16,6 +16,7 @@ import {
   Radio,
   Alert,
   ColorPicker,
+  InputNumber,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -23,11 +24,12 @@ import {
   ReloadOutlined,
   DownloadOutlined,
   UploadOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/PageHeader';
 import { useCategories, useSnapshots } from '../../app/storage';
-import { useSettings, type ThemeMode } from '../../app/settings';
+import { useSettings, type ThemeMode, type RateBand, type SnapshotDateOrder } from '../../app/settings';
 import { SEED_CATEGORIES, SEED_SNAPSHOTS } from '../../services/mockData';
 import { USE_MOCK, categoryService, snapshotService, systemService } from '../../services';
 import type { SystemInfo } from '../../services/types';
@@ -189,6 +191,47 @@ const Settings: React.FC = () => {
     message.success('所有数据已清空');
   }, [refreshCategories, refreshSnapshots, refreshSysInfo]);
 
+  // --- 增长率标签颜色配置 ---
+  const updateRateZero = useCallback(
+    (color: string) =>
+      updateSettings({ rateColors: { ...settings.rateColors, zero: color } }),
+    [settings.rateColors, updateSettings]
+  );
+
+  const updateRateBand = useCallback(
+    (index: number, patch: Partial<RateBand>) => {
+      const band = { ...settings.rateColors.bands[index], ...patch };
+      if (band.from !== null && band.to !== null && band.from >= band.to) {
+        message.error('区间下限必须小于上限');
+        return;
+      }
+      const bands = settings.rateColors.bands.map((b, i) => (i === index ? band : b));
+      updateSettings({ rateColors: { ...settings.rateColors, bands } });
+    },
+    [settings.rateColors, updateSettings]
+  );
+
+  const addRateBand = useCallback(() => {
+    updateSettings({
+      rateColors: {
+        ...settings.rateColors,
+        bands: [...settings.rateColors.bands, { from: 0, to: 0, color: '#8c8c8c' }],
+      },
+    });
+  }, [settings.rateColors, updateSettings]);
+
+  const removeRateBand = useCallback(
+    (index: number) => {
+      updateSettings({
+        rateColors: {
+          ...settings.rateColors,
+          bands: settings.rateColors.bands.filter((_, i) => i !== index),
+        },
+      });
+    },
+    [settings.rateColors, updateSettings]
+  );
+
   return (
     <>
       <PageHeader title="设置" subtitle="数据管理、显示偏好与其他设置" />
@@ -240,7 +283,81 @@ const Settings: React.FC = () => {
               onChange={(v) => updateSettings({ thousandsSeparator: v })}
             />
           </SettingRow>
+          <SettingRow label="快照日期排序">
+            <Segmented
+              options={[
+                { label: '倒序（新→旧）', value: 'desc' },
+                { label: '正序（旧→新）', value: 'asc' },
+              ]}
+              value={settings.snapshotDateOrder}
+              onChange={(v) =>
+                updateSettings({ snapshotDateOrder: v as SnapshotDateOrder })
+              }
+            />
+          </SettingRow>
         </Space>
+      </Card>
+
+      <Card title="增长率标签颜色" style={{ maxWidth: 600, marginBottom: 16 }}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          资产快照表中金额左侧的增长率小框颜色。0% 使用固定颜色，其余按区间规则从上到下匹配；
+          区间为「下限（不含）～ 上限（含）」，单位为 %，留空表示无界限。
+        </Typography.Paragraph>
+        <SettingRow label="0% 时颜色">
+          <ColorPicker
+            value={settings.rateColors.zero}
+            onChange={(c) => updateRateZero(c.toHexString())}
+            showText
+          />
+        </SettingRow>
+        <Divider plain>区间规则</Divider>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          {settings.rateColors.bands.map((band, index) => (
+            <Space key={index} size={8} align="center" wrap>
+              <Typography.Text type="secondary">下限</Typography.Text>
+              <InputNumber
+                style={{ width: 88 }}
+                value={band.from}
+                placeholder="无"
+                step={1}
+                onChange={(v) =>
+                  updateRateBand(index, { from: typeof v === 'number' ? v : null })
+                }
+              />
+              <Typography.Text type="secondary">% ～ 上限</Typography.Text>
+              <InputNumber
+                style={{ width: 88 }}
+                value={band.to}
+                placeholder="无"
+                step={1}
+                onChange={(v) =>
+                  updateRateBand(index, { to: typeof v === 'number' ? v : null })
+                }
+              />
+              <Typography.Text type="secondary">%</Typography.Text>
+              <ColorPicker
+                value={band.color}
+                onChange={(c) => updateRateBand(index, { color: c.toHexString() })}
+                showText
+              />
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => removeRateBand(index)}
+              />
+            </Space>
+          ))}
+        </Space>
+        <Button
+          type="dashed"
+          block
+          icon={<PlusOutlined />}
+          style={{ marginTop: 12 }}
+          onClick={addRateBand}
+        >
+          添加区间规则
+        </Button>
       </Card>
 
       <Card title="键盘快捷键" style={{ maxWidth: 600, marginBottom: 16 }}>

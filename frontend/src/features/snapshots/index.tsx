@@ -48,11 +48,14 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 import PageHeader from '../../components/PageHeader';
 import AmountText from '../../components/AmountText';
 import EmptyState from '../../components/EmptyState';
+import GrowthBadge from '../../components/GrowthBadge';
 import { useSnapshots, useCategories } from '../../app/storage';
+import { useSettings } from '../../app/settings';
 import { snapshotService, categoryService } from '../../services';
 import { isValidAmount } from '../../utils/amount';
 import { isValidDateOnly, isValidDateRange } from '../../utils/date';
 import { getCategoryColor } from '../../utils/color';
+import { calcGrowthRate, bandColorOf } from '../../utils/rate';
 import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
 import type { SnapshotBatchEntry } from '../../services/types';
 import {
@@ -76,6 +79,7 @@ type BatchRow = {
 const Snapshots: React.FC = () => {
   const { snapshots, loading, refresh: refreshSnapshots } = useSnapshots();
   const { categories, refresh: refreshCategories } = useCategories();
+  const { settings } = useSettings();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add');
@@ -114,9 +118,23 @@ const Snapshots: React.FC = () => {
     if (filterCategory) {
       result = result.filter((s) => s.items.some((i) => i.categoryId === filterCategory));
     }
-    result.sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
+    result.sort((a, b) =>
+      settings.snapshotDateOrder === 'asc'
+        ? a.snapshotDate.localeCompare(b.snapshotDate)
+        : b.snapshotDate.localeCompare(a.snapshotDate)
+    );
     return result;
-  }, [snapshots, filterDateRange, filterCategory]);
+  }, [snapshots, filterDateRange, filterCategory, settings.snapshotDateOrder]);
+
+  // 每个快照日期对应的前一个快照（按日期升序的全量数据，不受筛选影响）
+  const prevByDate = useMemo(() => {
+    const sorted = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+    const map = new Map<string, AssetSnapshot>();
+    for (let i = 1; i < sorted.length; i++) {
+      map.set(sorted[i].snapshotDate, sorted[i - 1]);
+    }
+    return map;
+  }, [snapshots]);
 
   // 数据变化后修正页码（如批量删除后当前页超出范围）
   useEffect(() => {
@@ -518,13 +536,14 @@ const Snapshots: React.FC = () => {
     </div>
   );
 
-  // --- 表格列定义 ---
+  // --- 表格列定义：日期 + 总资产 + 每个分类一列 ---
   const columns: ColumnsType<AssetSnapshot> = [
     {
       title: '日期',
       dataIndex: 'snapshotDate',
       key: 'snapshotDate',
       width: 140,
+      fixed: 'left',
       sorter: (a, b) => a.snapshotDate.localeCompare(b.snapshotDate),
       render: (v: string) => <Tag color="blue">{v}</Tag>,
     },
@@ -532,17 +551,61 @@ const Snapshots: React.FC = () => {
       title: '总资产',
       dataIndex: 'totalAmount',
       key: 'totalAmount',
-      render: (v: string) => <AmountText amount={v} style={{ fontWeight: 500 }} />,
+      width: 200,
+      render: (v: string, record: AssetSnapshot) => {
+        const prev = prevByDate.get(record.snapshotDate);
+        const rate = prev ? calcGrowthRate(v, prev.totalAmount) : null;
+        return (
+          <Space size={6}>
+            {rate !== null && (
+              <GrowthBadge rate={rate} color={bandColorOf(rate, settings.rateColors)} />
+            )}
+            <AmountText amount={v} style={{ fontWeight: 500 }} />
+          </Space>
+        );
+      },
     },
-    {
-      title: '分类明细数',
-      key: 'itemCount',
-      render: (_, record) => `${record.items.length} 个分类`,
-    },
+    ...categories.map((category, idx) => ({
+      title: (
+        <Space size={6}>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: getCategoryColor(category, idx),
+            }}
+          />
+          {category.name}
+        </Space>
+      ),
+      key: category.id,
+      width: 180,
+      align: 'left' as const,
+      render: (_: unknown, record: AssetSnapshot) => {
+        const item = record.items.find((i) => i.categoryId === category.id);
+        if (!item) {
+          return <Typography.Text type="secondary">—</Typography.Text>;
+        }
+        const prev = prevByDate.get(record.snapshotDate);
+        const prevItem = prev?.items.find((i) => i.categoryId === category.id);
+        const rate = prevItem ? calcGrowthRate(item.amount, prevItem.amount) : null;
+        return (
+          <Space size={6}>
+            {rate !== null && (
+              <GrowthBadge rate={rate} color={bandColorOf(rate, settings.rateColors)} />
+            )}
+            <AmountText amount={item.amount} />
+          </Space>
+        );
+      },
+    })),
     {
       title: '操作',
       key: 'actions',
       width: 180,
+      fixed: 'right',
       render: (_, record) => (
         <Space>
           <Button
@@ -737,6 +800,7 @@ const Snapshots: React.FC = () => {
           dataSource={filteredSnapshots}
           columns={columns}
           rowKey="id"
+          scroll={{ x: 'max-content' }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys as string[]),
