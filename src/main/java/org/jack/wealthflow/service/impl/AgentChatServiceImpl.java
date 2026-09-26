@@ -112,7 +112,7 @@ public class AgentChatServiceImpl implements AgentChatService {
                         modelReply.reply(),
                         null,
                         null,
-                        MessageConstant.AGENT_DELETE_DRAFT_NOT_CREATED
+                        "删除草案未生成：" + exception.getMessage()
                 );
             }
         }
@@ -124,7 +124,7 @@ public class AgentChatServiceImpl implements AgentChatService {
     private DeleteSnapshotDraftRequest toDeleteDraftRequest(
             ModelDeleteProposal proposal
     ) {
-        return new DeleteSnapshotDraftRequest(proposal.snapshotDates());
+        return new DeleteSnapshotDraftRequest(proposal.snapshotDates(), proposal.startDate(), proposal.endDate());
     }
 
     private CreateSnapshotDraftRequest toDraftRequest(

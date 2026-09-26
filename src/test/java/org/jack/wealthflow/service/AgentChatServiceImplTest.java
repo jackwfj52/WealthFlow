@@ -515,6 +515,33 @@ class AgentChatServiceImplTest {
     // ---------- 删除快照草案 ----------
 
     @Test
+    void shouldResolveRangeOutsideRecentContextWithoutDeletingSnapshots() {
+        stubConnection();
+        stubCategoryList();
+        when(assetCategoryMapper.findById(1L)).thenReturn(category(1L, "现金"));
+        LocalDate start = LocalDate.of(2025, 1, 1);
+        when(assetSnapshotMapper.findAll()).thenReturn(IntStream.range(0, 40)
+                .mapToObj(i -> existingSnapshot(start.plusDays(i))).toList());
+        PendingAction action = new PendingAction();
+        action.setId("range-delete");
+        action.setActionType(PendingActionType.DELETE_SNAPSHOT);
+        action.setStatus(PendingActionStatus.PENDING);
+        when(pendingActionService.create(eq(PendingActionType.DELETE_SNAPSHOT), anyString(), anyString()))
+                .thenReturn(action);
+        when(aiModelGateway.complete(anyString(), anyString(), anyString(), anyString(), anyList()))
+                .thenReturn("""
+                        {"kind":"propose_delete_snapshots","reply":"请核对日期后确认删除",
+                         "proposal":{"startDate":"2025-01-01","endDate":"2025-02-01"}}
+                        """);
+        var response = agentChatService.chat(request("删除2025年1月1号到2月1号的快照"));
+        assertNull(response.draftError());
+        assertEquals(32, response.deleteDraft().items().size());
+        assertEquals("2025-01-01", response.deleteDraft().items().get(0).snapshotDate());
+        assertEquals("2025-02-01", response.deleteDraft().items().get(31).snapshotDate());
+        verify(assetSnapshotMapper, never()).deleteBySnapshotDate(any());
+    }
+
+    @Test
     void shouldCreateDeleteDraftFromValidProposalWithoutDeletingSnapshot() {
         stubConnection();
         stubCategoryList();
@@ -604,7 +631,7 @@ class AgentChatServiceImplTest {
 
         assertEquals("将删除 2026-08-31 的快照。", response.reply());
         assertNull(response.deleteDraft());
-        assertEquals(MessageConstant.AGENT_DELETE_DRAFT_NOT_CREATED,
+        assertEquals("删除草案未生成：" + MessageConstant.SNAPSHOT_DELETE_DATE_NOT_FOUND,
                 response.draftError());
         verify(pendingActionService, never()).create(
                 any(PendingActionType.class), anyString(), anyString()

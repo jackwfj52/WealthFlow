@@ -4,10 +4,15 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 删除快照草案请求：要删除的快照日期列表。
- * 同时作为 PendingAction.payloadJson 的序列化结构。
+ * 删除快照草案请求：日期列表或包含首尾的日期范围，二选一。
+ * PendingAction.payloadJson 只保存解析后的日期列表，确认时不再扩大范围。
  */
 public record DeleteSnapshotDraftRequest(
-        List<LocalDate> snapshotDates
+        List<LocalDate> snapshotDates,
+        LocalDate startDate,
+        LocalDate endDate
 ) {
+    public DeleteSnapshotDraftRequest(List<LocalDate> snapshotDates) {
+        this(snapshotDates, null, null);
+    }
 }

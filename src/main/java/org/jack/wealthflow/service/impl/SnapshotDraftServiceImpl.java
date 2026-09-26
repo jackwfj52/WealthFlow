@@ -107,6 +107,23 @@ public class SnapshotDraftServiceImpl implements SnapshotDraftService {
     private List<LocalDate> validateDeleteDates(
             DeleteSnapshotDraftRequest request
     ) {
+        if (request != null && (request.startDate() != null || request.endDate() != null)) {
+            if (request.snapshotDates() != null || request.startDate() == null || request.endDate() == null
+                    || request.startDate().isAfter(request.endDate())) {
+                throw new BusinessException(ErrorCode.PARAM_INVALID, "请提供完整且顺序正确的起止日期，不能同时指定日期列表");
+            }
+            List<LocalDate> dates = assetSnapshotService.findAll().stream()
+                    .map(AssetSnapshotResponse::getSnapshotDate)
+                    .filter(date -> !date.isBefore(request.startDate()) && !date.isAfter(request.endDate()))
+                    .distinct()
+                    .sorted()
+                    .toList();
+            if (dates.isEmpty()) {
+                throw new BusinessException(ErrorCode.SNAPSHOT_NOT_FOUND, "所选日期范围内没有快照，无需删除");
+            }
+            // 将范围固定为实际匹配的日期；确认时不会重新查询并扩大删除范围。
+            return dates;
+        }
         if (request == null
                 || request.snapshotDates() == null
                 || request.snapshotDates().isEmpty()) {
@@ -181,6 +198,11 @@ public class SnapshotDraftServiceImpl implements SnapshotDraftService {
     private String buildDeleteDisplaySummary(
             List<DeleteSnapshotDraftItem> items
     ) {
+        if (items.size() > MAX_DELETE_DATES) {
+            return "将删除 " + items.get(0).snapshotDate() + " 至 "
+                    + items.get(items.size() - 1).snapshotDate() + " 范围内共 "
+                    + items.size() + " 天的资产快照，具体日期见明细，删除后不可恢复";
+        }
         String dates = items.stream()
                 .map(DeleteSnapshotDraftItem::snapshotDate)
                 .collect(Collectors.joining("、"));

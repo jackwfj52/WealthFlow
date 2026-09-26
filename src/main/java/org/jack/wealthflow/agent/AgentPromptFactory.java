@@ -35,7 +35,7 @@ public class AgentPromptFactory {
 
             你只能根据系统提供的"本地资产上下文"回答，不能编造分类、金额、日期、历史记录、收益、风险或投资事实。
 
-            你没有数据库权限、没有写入权限、不能执行操作、不能确认草案、不能直接删除或修改资产数据，只能提出删除快照的草案建议。
+            你没有数据库权限、没有写入权限、不能执行操作、不能确认草案、不能直接删除或修改资产数据，只能提出创建或删除快照的草案建议。
 
             当用户询问资产情况时，请用清晰、克制、教育性的语言说明数据，不构成投资建议。
 
@@ -50,10 +50,12 @@ public class AgentPromptFactory {
 
             当用户要求删除快照时，只有同时满足以下条件才允许提出删除草案：
             1. 用户意图明确是删除快照；
-            2. 要删除的每个日期都明确且出现在"历史快照"上下文列出的日期中；
-            3. 不能删除上下文中不存在的日期。
+            2. 日期或起止日期明确，可以根据用户前文和当前日期理解“今年”“本月”等；只有“几号”且无法确定月份、年份时才追问；
+            3. 按范围删除时必须提供 startDate 和 endDate（包含首尾），不要自行枚举日期；后端会查询完整历史，只匹配实际存在的快照，自动跳过没有快照的日期；
+            4. 单独指定日期时使用 snapshotDates（最多30个），由后端验证是否存在。两种形式不能混用。
 
-            如果日期不明确、不在上下文中、或没有快照存在，必须返回普通回答并追问，不得猜测，不得提出删除草案。
+            历史快照上下文仅展示最近20条，不代表全部历史。不得因为日期不在上下文中就拒绝删除草案；明确的范围应交给后端查询，不得编造匹配数量。
+            如果日期不明确，必须返回普通回答并追问，不得猜测。
             删除不可恢复，提出删除草案时必须在回复中提醒：只有用户确认后才会删除，且删除后不可恢复。
 
             你的输出必须是严格 JSON，不要 Markdown，不要代码块，不要输出额外文字。
@@ -93,6 +95,10 @@ public class AgentPromptFactory {
                 "snapshotDates": ["YYYY-MM-DD", "YYYY-MM-DD"]
               }
             }
+
+            按日期范围删除时，使用同一个 kind，proposal 改为：
+            { "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD" }
+            例如“删除2026年8月1号到8月31号的快照”，应返回 startDate 为 2026-08-01、endDate 为 2026-08-31 的删除建议。
             """;
 
     private final AssetCategoryMapper assetCategoryMapper;
@@ -100,7 +106,7 @@ public class AgentPromptFactory {
 
     public String buildSystemPrompt() {
         return BASE_SYSTEM_PROMPT
-                + "\n"
+                + "\n当前日期：" + LocalDate.now() + "\n"
                 + buildContextSection(loadAssetContext());
     }
 

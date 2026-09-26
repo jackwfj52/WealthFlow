@@ -167,6 +167,24 @@ public class ModelReplyParser {
     }
 
     private ModelDeleteProposal parseDeleteProposal(JsonNode proposalNode) {
+        if (proposalNode.hasNonNull("startDate") || proposalNode.hasNonNull("endDate")) {
+            if (proposalNode.hasNonNull("snapshotDates")) {
+                return null;
+            }
+            JsonNode start = proposalNode.get("startDate");
+            JsonNode end = proposalNode.get("endDate");
+            if (start == null || !start.isTextual() || end == null || !end.isTextual()) {
+                return null;
+            }
+            try {
+                LocalDate startDate = LocalDate.parse(start.asText().trim());
+                LocalDate endDate = LocalDate.parse(end.asText().trim());
+                return startDate.isAfter(endDate) ? null
+                        : new ModelDeleteProposal(null, startDate, endDate);
+            } catch (DateTimeParseException exception) {
+                return null;
+            }
+        }
         JsonNode datesNode = proposalNode.get("snapshotDates");
         if (datesNode == null
                 || !datesNode.isArray()

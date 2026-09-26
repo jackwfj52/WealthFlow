@@ -423,6 +423,26 @@ class ModelReplyParserTest {
         assertFallback(reply);
     }
 
+    @Test
+    void shouldParseDateRangeAndRejectAmbiguousOrInvalidRanges() {
+        ModelReply reply = parser.parse("""
+                {"kind":"propose_delete_snapshots","reply":"请确认",
+                 "proposal":{"startDate":"2025-01-01","endDate":"2025-12-31"}}
+                """);
+        ModelDeleteProposal proposal = (ModelDeleteProposal) reply.proposal();
+        assertEquals(LocalDate.of(2025, 1, 1), proposal.startDate());
+        assertEquals(LocalDate.of(2025, 12, 31), proposal.endDate());
+        assertNull(proposal.snapshotDates());
+        for (String invalid : List.of(
+                "\"startDate\":\"2025-01-01\"",
+                "\"startDate\":\"2025-02-30\",\"endDate\":\"2025-03-01\"",
+                "\"startDate\":\"2025-02-01\",\"endDate\":\"2025-01-01\"",
+                "\"startDate\":123,\"endDate\":\"2025-01-01\"",
+                "\"startDate\":\"2025-01-01\",\"endDate\":\"2025-01-02\",\"snapshotDates\":[]")) {
+            assertFallback(parser.parse("{\"kind\":\"propose_delete_snapshots\",\"reply\":\"请确认\",\"proposal\":{" + invalid + "}}"));
+        }
+    }
+
     private void assertFallback(ModelReply reply) {
         assertEquals(ModelReply.KIND_ANSWER, reply.kind());
         assertEquals(MessageConstant.AGENT_REPLY_PARSE_FALLBACK, reply.reply());

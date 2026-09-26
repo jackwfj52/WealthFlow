@@ -143,6 +143,47 @@ class SnapshotDraftServiceTest {
         return response;
     }
 
+    @Test
+    void shouldResolveInclusiveRangeWithGapsAndMoreThanThirtySnapshots() throws Exception {
+        LocalDate start = LocalDate.of(2025, 1, 1);
+        LocalDate end = start.plusDays(62);
+        var snapshots = new java.util.ArrayList<>(java.util.stream.IntStream.rangeClosed(0, 31)
+                .mapToObj(i -> snapshotResponse(start.plusDays(i * 2L), BigDecimal.TEN)).toList());
+        snapshots.add(snapshotResponse(start.minusDays(1), BigDecimal.ONE));
+        snapshots.add(snapshotResponse(end.plusDays(1), BigDecimal.ONE));
+        when(assetSnapshotService.findAll()).thenReturn(snapshots);
+        when(pendingActionService.create(eq(PendingActionType.DELETE_SNAPSHOT), anyString(), anyString()))
+                .thenReturn(deletePendingAction());
+
+        var draft = snapshotDraftService.createDeleteSnapshotDraft(new DeleteSnapshotDraftRequest(null, start, end));
+        assertEquals(32, draft.items().size());
+        assertEquals(start.toString(), draft.items().get(0).snapshotDate());
+        assertEquals(end.toString(), draft.items().get(31).snapshotDate());
+        var payload = ArgumentCaptor.forClass(String.class);
+        verify(pendingActionService).create(eq(PendingActionType.DELETE_SNAPSHOT), payload.capture(), anyString());
+        var saved = objectMapper.readValue(payload.getValue(), DeleteSnapshotDraftRequest.class);
+        assertEquals(32, saved.snapshotDates().size());
+        org.junit.jupiter.api.Assertions.assertNull(saved.startDate());
+        org.junit.jupiter.api.Assertions.assertNull(saved.endDate());
+        verify(assetSnapshotService, never()).deleteBySnapshotDate(any());
+    }
+
+    @Test
+    void shouldRejectEmptyOrInvalidRangeWithoutCreatingAction() {
+        LocalDate date = LocalDate.of(2025, 1, 1);
+        when(assetSnapshotService.findAll()).thenReturn(List.of());
+        var empty = assertThrows(BusinessException.class, () -> snapshotDraftService.createDeleteSnapshotDraft(
+                new DeleteSnapshotDraftRequest(null, date, date)));
+        assertEquals(ErrorCode.SNAPSHOT_NOT_FOUND, empty.getErrorCode());
+        for (var invalid : List.of(new DeleteSnapshotDraftRequest(null, date, null),
+                new DeleteSnapshotDraftRequest(null, null, date),
+                new DeleteSnapshotDraftRequest(null, date.plusDays(1), date),
+                new DeleteSnapshotDraftRequest(List.of(date), date, date))) {
+            assertThrows(BusinessException.class, () -> snapshotDraftService.createDeleteSnapshotDraft(invalid));
+        }
+        verify(pendingActionService, never()).create(any(), anyString(), anyString());
+    }
+
     private PendingAction deletePendingAction() {
         PendingAction pendingAction = new PendingAction();
         pendingAction.setId("action-del");

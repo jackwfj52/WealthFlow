@@ -155,7 +155,9 @@ class AgentPromptFactoryTest {
         assertTrue(prompt.contains("propose_delete_snapshots"));
         assertTrue(prompt.contains("\"snapshotDates\""));
         assertTrue(prompt.contains("确认后才会删除且不可恢复"));
-        // 只能删除上下文中存在的日期
-        assertTrue(prompt.contains("出现在\"历史快照\"上下文列出的日期中"));
+        assertTrue(prompt.contains("startDate"));
+        assertTrue(prompt.contains("endDate"));
+        assertTrue(prompt.contains("不得因为日期不在上下文中就拒绝删除草案"));
+        assertTrue(prompt.contains("当前日期：" + LocalDate.now()));
     }
 }
