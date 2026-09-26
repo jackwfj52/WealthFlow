@@ -1,6 +1,9 @@
 package org.jack.wealthflow.model;
 
 public enum PendingActionType {
+    BATCH_CREATE_SNAPSHOTS,
+    BATCH_UPDATE_SNAPSHOTS,
+    BATCH_DELETE_SNAPSHOTS,
     CREATE_SNAPSHOT,
     UPDATE_SNAPSHOT,
     DELETE_SNAPSHOT,

@@ -39,12 +39,15 @@ import type {
   PendingActionCancellationResult,
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
+  BatchSnapshotDraftResult,
   PendingActionExecutionResult,
 } from '../../services/apiAgentActions';
 import { aiProviderService } from '../../services/apiAgentProviders';
 import type { AiProviderConfig } from '../../services/apiAgentProviders';
 import { apiAgentChat } from '../../services/apiAgentChat';
 import type { AgentChatMessage } from '../../services/apiAgentChat';
+import BatchDraftDetails from './BatchDraftDetails';
+import { ApiError } from '../../services/apiClient';
 
 const { Text, Paragraph } = Typography;
 
@@ -56,6 +59,7 @@ interface ChatMessage {
   content: string;
   /** 模型返回前显示"正在分析..."占位 */
   loading?: boolean;
+  steps?: string[];
 }
 
 interface DraftEntryFormValues {
@@ -66,10 +70,11 @@ interface DraftEntryFormValues {
 /** 待确认草案：创建与删除互斥，由后端保证同一响应中只有一个非空 */
 type PendingDraft =
   | { kind: 'create'; data: CreateSnapshotDraftResult }
+  | { kind: 'batch'; data: BatchSnapshotDraftResult }
   | { kind: 'delete'; data: DeleteSnapshotDraftResult };
 
 const SUGGESTIONS = [
-  '我这个月为什么资产下降？',
+  '分析最近180天资产变化，并说明数据局限',
   '我的资产主要集中在哪里？',
   '帮我创建今天的资产快照',
   '近半年变化最大的分类是什么？',
@@ -80,31 +85,64 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 1,
     role: 'assistant',
     content:
-      '你好，我是 WealthFlow AI 助手。我可以基于你的本地资产数据回答问题、起草资产快照；所有写入操作都需要你在右侧确认后才会执行。',
+      '你好，我可以查询完整资产历史、分析变化、起草批量增删改操作。所有数据修改都需在右侧核对后确认。',
   },
 ];
 
+interface AgentSession {
+  messages?: ChatMessage[];
+  draft?: PendingDraft | null;
+  execution?: PendingActionExecutionResult | null;
+  providerId?: string;
+}
+const SESSION_KEY = 'wealthflow-agent-session-v2';
+function readSession(): AgentSession {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}');
+    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  } catch { return {}; }
+}
+
 const Agent: React.FC = () => {
+  const [session] = useState(readSession);
   const { token } = theme.useToken();
   const { categories } = useCategories();
   const { refresh: refreshSnapshots } = useSnapshots();
 
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>(session.messages?.filter(m => !m.loading) ?? INITIAL_MESSAGES);
   const [form] = Form.useForm<DraftEntryFormValues>();
 
   const [providers, setProviders] = useState<AiProviderConfig[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string>();
+  const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>(session.providerId);
   const [sending, setSending] = useState(false);
 
-  const [draft, setDraft] = useState<PendingDraft | null>(null);
-  const [execution, setExecution] = useState<PendingActionExecutionResult | null>(null);
+  const [draft, setDraft] = useState<PendingDraft | null>(session.draft ?? null);
+  const [execution, setExecution] = useState<PendingActionExecutionResult | null>(session.execution ?? null);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
   const executed = execution?.status === 'EXECUTED';
   const cancelled = draft?.data.status === 'CANCELLED';
+  const deleteOperation = draft?.kind === 'delete' || draft?.data.actionType === 'BATCH_DELETE_SNAPSHOTS';
+  const pending = draft?.data.status === 'PENDING' && !executed;
+  const actionError = (err: unknown) => {
+    if (err instanceof ApiError && [40403, 40904, 40905].includes(err.code)) {
+      setDraft(null);
+      setExecution(null);
+    }
+    if (err instanceof Error) message.error(err.message);
+  };
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        messages: messages.filter(m => !m.loading).slice(-40), draft, execution,
+        providerId: selectedProviderId,
+      }));
+    } catch { /* 浏览器存储不可用时，对话仍可正常进行。 */ }
+  }, [messages, draft, execution, selectedProviderId]);
 
   useEffect(() => {
     let cancelledRequest = false;
@@ -113,7 +151,7 @@ const Agent: React.FC = () => {
       .then((list) => {
         if (cancelledRequest) return;
         setProviders(list);
-        setSelectedProviderId((current) => current ?? list[0]?.providerId);
+        setSelectedProviderId((current) => list.some(p => p.providerId === current) ? current : list[0]?.providerId);
       })
       .catch((err) => {
         if (cancelledRequest) return;
@@ -128,14 +166,15 @@ const Agent: React.FC = () => {
 
   const sendMessage = async (text?: string) => {
     const content = (text ?? input).trim();
-    if (!content || sending || !selectedProviderId) return;
+    if (!content || sending || confirming || cancelling || creatingDraft || !selectedProviderId) return;
+    if (pending) { message.info('请先确认或取消右侧草案，再发起新的请求'); return; }
 
     // 只发送最近 8 条用户/助手聊天记录，不发送 API Key 与系统提示词
     const history: AgentChatMessage[] = messages
       .slice(-8)
       .map((item) => ({
         role: item.role as AgentChatMessage['role'],
-        content: item.content,
+        content: item.content.slice(0, 2000),
       }));
 
     const userMessage: ChatMessage = {
@@ -168,7 +207,7 @@ const Agent: React.FC = () => {
       setMessages((previous) =>
         previous.map((item) =>
           item.id === placeholderId
-            ? { ...item, content: result.reply, loading: false }
+            ? { ...item, content: result.reply, loading: false, steps: result.steps }
             : item
         )
       );
@@ -186,6 +225,11 @@ const Agent: React.FC = () => {
       if (result.draftError) {
         message.warning(result.draftError);
       }
+      if (result.batchDraft) {
+        setDraft({ kind: 'batch', data: result.batchDraft });
+        setExecution(null);
+        message.success('批量草案已生成，请核对逐日明细');
+      }
     } catch (err) {
       setMessages((previous) =>
         previous.filter((item) => item.id !== placeholderId)
@@ -199,6 +243,7 @@ const Agent: React.FC = () => {
   };
 
   const generateDraft = async () => {
+    if (sending || pending || confirming || cancelling || creatingDraft) return;
     try {
       const values = await form.validateFields();
       const snapshotDate = values.snapshotDate.format('YYYY-MM-DD');
@@ -239,18 +284,24 @@ const Agent: React.FC = () => {
   };
 
   const confirmDraft = async () => {
-    if (!draft || draft.data.status !== 'PENDING' || confirming || cancelling) return;
+    if (!draft || draft.data.status !== 'PENDING' || confirming || cancelling || sending) return;
 
     setConfirming(true);
     try {
       const result =
-        draft.kind === 'delete'
+        draft.kind === 'batch'
+          ? await apiAgentActions.confirmBatchAction(draft.data.actionId)
+          : draft.kind === 'delete'
           ? await apiAgentActions.confirmDeleteAction(draft.data.actionId)
           : await apiAgentActions.confirmAction(draft.data.actionId);
       setExecution(result);
 
       if (result.status === 'EXECUTED') {
         refreshSnapshots();
+        setMessages(previous => [...previous, {
+          id: Date.now(), role: 'assistant',
+          content: `已执行操作（${draft.data.actionId}）：${draft.data.displaySummary}。执行结果：${result.displaySummary}`,
+        }]);
         message.success(
           result.displaySummary ||
             (draft.kind === 'delete' ? '快照已删除' : '快照已创建')
@@ -259,9 +310,7 @@ const Agent: React.FC = () => {
         message.warning(result.displaySummary || `操作未完成（${result.status}）`);
       }
     } catch (err) {
-      if (err instanceof Error) {
-        message.error(err.message);
-      }
+      actionError(err);
     } finally {
       setConfirming(false);
     }
@@ -277,6 +326,9 @@ const Agent: React.FC = () => {
 
       setDraft((currentDraft) => {
         if (!currentDraft) return currentDraft;
+        if (currentDraft.kind === 'batch') {
+          return { kind: 'batch' as const, data: { ...currentDraft.data, status: result.status } };
+        }
         if (currentDraft.kind === 'create') {
           return {
             kind: 'create' as const,
@@ -298,11 +350,12 @@ const Agent: React.FC = () => {
           },
         };
       });
+      setMessages(previous => [...previous, {
+        id: Date.now(), role: 'assistant', content: `已取消操作（${draft.data.actionId}），未执行：${draft.data.displaySummary}`,
+      }]);
       message.success(result.displaySummary || '草案已取消');
     } catch (err) {
-      if (err instanceof Error) {
-        message.error(err.message);
-      }
+      actionError(err);
     } finally {
       setCancelling(false);
     }
@@ -374,7 +427,10 @@ const Agent: React.FC = () => {
                               <Text>正在分析...</Text>
                             </Space>
                           ) : (
-                            item.content
+                            <>
+                              {item.content}
+                              {!!item.steps?.length && <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{item.steps.join(' → ')}</Text></div>}
+                            </>
                           )}
                         </div>
                         {isUser && <Avatar icon={<UserOutlined />} />}
@@ -410,12 +466,15 @@ const Agent: React.FC = () => {
                 </Space>
               )}
 
+              <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>
+                {pending && <Alert type="info" showIcon message="请先核对右侧草案并确认或取消，再继续对话" />}
+              </Space>
               <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
                 {SUGGESTIONS.map((suggestion) => (
                   <Button
                     key={suggestion}
                     size="small"
-                    disabled={sending || providers.length === 0}
+                    disabled={sending || pending || confirming || cancelling || providers.length === 0}
                     onClick={() => sendMessage(suggestion)}
                   >
                     {suggestion}
@@ -424,13 +483,14 @@ const Agent: React.FC = () => {
               </Space>
               <Input.Search
                 value={input}
-                placeholder="例如：帮我创建今天的资产快照"
+                placeholder="例如：把8月所有快照的现金设为20000元"
+                maxLength={2000}
                 enterButton={
                   <Button
                     type="primary"
                     icon={<SendOutlined />}
                     loading={sending}
-                    disabled={providers.length === 0 || !selectedProviderId}
+                    disabled={pending || confirming || cancelling || creatingDraft || providers.length === 0 || !selectedProviderId}
                   >
                     发送
                   </Button>
@@ -463,9 +523,7 @@ const Agent: React.FC = () => {
                   <CheckCircleOutlined style={{ color: token.colorSuccess }} />
                   <div>
                     <Text strong>
-                      {execution.actionType === 'DELETE_SNAPSHOT'
-                        ? '删除资产快照'
-                        : '创建资产快照'}
+                      快照操作已完成
                     </Text>
                     <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
                       {execution.displaySummary}
@@ -508,14 +566,14 @@ const Agent: React.FC = () => {
                 <Space align="start">
                   {cancelled ? (
                     <CloseCircleOutlined style={{ color: token.colorTextSecondary }} />
-                  ) : draft.kind === 'delete' ? (
+                  ) : deleteOperation ? (
                     <DeleteOutlined style={{ color: token.colorError }} />
                   ) : (
                     <WarningOutlined style={{ color: token.colorWarning }} />
                   )}
                   <div>
                     <Text strong>
-                      {draft.kind === 'delete' ? '删除资产快照' : '创建资产快照'}
+                      {draft.kind === 'batch' ? '批量快照操作' : draft.kind === 'delete' ? '删除资产快照' : '创建资产快照'}
                     </Text>
                     <Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
                       {cancelled
@@ -529,7 +587,7 @@ const Agent: React.FC = () => {
 
                 <Card size="small" style={{ background: token.colorFillAlter }}>
                   <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                    {draft.kind === 'create' ? (
+                    {draft.kind === 'batch' ? <BatchDraftDetails draft={draft.data} /> : draft.kind === 'create' ? (
                       <>
                         <Space style={{ justifyContent: 'space-between', width: '100%' }}>
                           <Text type="secondary">快照日期</Text>
@@ -569,7 +627,7 @@ const Agent: React.FC = () => {
                   <Space style={{ width: '100%' }}>
                     <Button
                       type="primary"
-                      danger={draft.kind === 'delete'}
+                      danger={deleteOperation}
                       block
                       icon={
                         draft.kind === 'delete' ? (
@@ -579,17 +637,17 @@ const Agent: React.FC = () => {
                         )
                       }
                       loading={confirming}
-                      disabled={confirming || cancelling}
+                      disabled={confirming || cancelling || sending}
                       onClick={confirmDraft}
                     >
-                      {draft.kind === 'delete' ? '确认删除（不可恢复）' : '确认创建'}
+                      {deleteOperation ? '确认删除（不可恢复）' : draft.kind === 'batch' ? '确认执行' : '确认创建'}
                     </Button>
                     <Button
                       block
                       danger={draft.kind !== 'delete'}
                       icon={<CloseCircleOutlined />}
                       loading={cancelling}
-                      disabled={confirming || cancelling}
+                      disabled={confirming || cancelling || sending}
                       onClick={cancelDraft}
                     >
                       取消草案
@@ -659,6 +717,7 @@ const Agent: React.FC = () => {
                     block
                     icon={<FileAddOutlined />}
                     loading={creatingDraft}
+                    disabled={sending || confirming || cancelling}
                     onClick={generateDraft}
                   >
                     生成待确认草案

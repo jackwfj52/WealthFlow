@@ -9,6 +9,7 @@ import { apiClient } from './apiClient';
 import type {
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
+  BatchSnapshotDraftResult,
 } from './apiAgentActions';
 
 export interface AgentChatMessage {
@@ -31,6 +32,8 @@ export interface AgentChatResult {
   draft: CreateSnapshotDraftResult | null;
   deleteDraft: DeleteSnapshotDraftResult | null;
   draftError: string | null;
+  batchDraft: BatchSnapshotDraftResult | null;
+  steps: string[];
 }
 
 export const apiAgentChat = {

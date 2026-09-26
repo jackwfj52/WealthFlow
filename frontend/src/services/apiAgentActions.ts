@@ -16,6 +16,9 @@ export type PendingActionStatus =
   | 'FAILED';
 
 export type PendingActionType =
+  | 'BATCH_CREATE_SNAPSHOTS'
+  | 'BATCH_UPDATE_SNAPSHOTS'
+  | 'BATCH_DELETE_SNAPSHOTS'
   | 'CREATE_SNAPSHOT'
   | 'UPDATE_SNAPSHOT'
   | 'DELETE_SNAPSHOT'
@@ -63,6 +66,15 @@ export interface DeleteSnapshotDraftResult {
   items: DeleteSnapshotDraftItem[];
 }
 
+export interface BatchSnapshotDraftResult {
+  actionId: string;
+  actionType: PendingActionType;
+  status: PendingActionStatus;
+  displaySummary: string;
+  expiresAt: string;
+  changes: { snapshotDate: string; before: DraftSnapshotItem[]; after: DraftSnapshotItem[] }[];
+}
+
 /** 确认执行结果：snapshot 仅在 status 为 EXECUTED 时存在 */
 export interface PendingActionExecutionResult {
   actionId: string;
@@ -82,6 +94,9 @@ export interface PendingActionCancellationResult {
 }
 
 export const apiAgentActions = {
+  async confirmBatchAction(actionId: string): Promise<PendingActionExecutionResult> {
+    return apiClient.post<PendingActionExecutionResult>(`/agent/actions/${actionId}/confirm-batch`, {});
+  },
   /** 创建待确认的快照草案（服务端校验并生成展示文案） */
   async createSnapshotDraft(
     payload: CreateSnapshotDraftPayload
