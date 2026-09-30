@@ -12,6 +12,7 @@ import {
   Input,
   InputNumber,
   List,
+  Modal,
   Row,
   Select,
   Space,
@@ -24,7 +25,9 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   DeleteOutlined,
+  EditOutlined,
   FileAddOutlined,
+  PlusOutlined,
   RobotOutlined,
   SendOutlined,
   UserOutlined,
@@ -44,8 +47,8 @@ import type {
 } from '../../services/apiAgentActions';
 import { aiProviderService } from '../../services/apiAgentProviders';
 import type { AiProviderConfig } from '../../services/apiAgentProviders';
-import { apiAgentChat } from '../../services/apiAgentChat';
-import type { AgentChatMessage } from '../../services/apiAgentChat';
+import { apiAgentConversations } from '../../services/apiAgentConversations';
+import type { AgentConversation, AgentConversationMessage } from '../../services/apiAgentConversations';
 import { apiAgentPermission, type AiPermissionLevel } from '../../services/apiAgentPermission';
 import BatchDraftDetails from './BatchDraftDetails';
 import { ApiError } from '../../services/apiClient';
@@ -55,7 +58,7 @@ const { Text, Paragraph } = Typography;
 type MessageRole = 'assistant' | 'user';
 
 interface ChatMessage {
-  id: number;
+  id: string | number;
   role: MessageRole;
   content: string;
   /** 模型返回前显示计算占位 */
@@ -75,10 +78,10 @@ type PendingDraft =
   | { kind: 'delete'; data: DeleteSnapshotDraftResult };
 
 const SUGGESTIONS = [
-  '分析最近180天资产变化，并说明数据局限',
-  '我的资产主要集中在哪里？',
-  '新增9月20日到今天的快照，数据自拟，整体每天波动约2%，股票每天波动约5%',
-  '近半年变化最大的分类是什么？',
+  '与一个月前相比，资产配置有什么变化？',
+  '最近90天，哪类资产增加最多，哪类减少最多？',
+  '最近半年最大快照回撤是多少？',
+  '根据现有记录，总结三个最值得关注的变化。',
 ];
 
 function actionStatusClaim(reply: string) {
@@ -99,37 +102,32 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   },
 ];
 
-interface AgentSession {
-  messages?: ChatMessage[];
-  draft?: PendingDraft | null;
-  execution?: PendingActionExecutionResult | null;
-  providerId?: string;
-}
-const SESSION_KEY = 'wealthflow-agent-session-v2';
-function readSession(): AgentSession {
-  try {
-    const stored = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}');
-    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
-  } catch { return {}; }
-}
+const ACTIVE_CONVERSATION_KEY = 'wealthflow-active-conversation';
+const toChatMessage = (item: AgentConversationMessage): ChatMessage => ({
+  id: item.id, role: item.role, content: item.content, steps: item.response?.steps,
+});
 
 const Agent: React.FC = () => {
-  const [session] = useState(readSession);
   const { token } = theme.useToken();
   const { categories } = useCategories();
   const { refresh: refreshSnapshots } = useSnapshots();
 
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>(session.messages?.filter(m => !m.loading) ?? INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [conversations, setConversations] = useState<AgentConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [loadingConversation, setLoadingConversation] = useState(true);
+  const [messagePage, setMessagePage] = useState(0);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [form] = Form.useForm<DraftEntryFormValues>();
 
   const [providers, setProviders] = useState<AiProviderConfig[]>([]);
   const [aiPermission, setAiPermission] = useState<AiPermissionLevel | null>(null);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>(session.providerId);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>();
   const [sending, setSending] = useState(false);
 
-  const [draft, setDraft] = useState<PendingDraft | null>(session.draft ?? null);
-  const [execution, setExecution] = useState<PendingActionExecutionResult | null>(session.execution ?? null);
+  const [draft, setDraft] = useState<PendingDraft | null>(null);
+  const [execution, setExecution] = useState<PendingActionExecutionResult | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -146,14 +144,114 @@ const Agent: React.FC = () => {
     if (err instanceof Error) message.error(err.message);
   };
 
-  useEffect(() => {
+  const loadConversation = async (id: string) => {
+    setLoadingConversation(true);
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-        messages: messages.filter(m => !m.loading).slice(-40), draft, execution,
-        providerId: selectedProviderId,
-      }));
-    } catch { /* 浏览器存储不可用时，对话仍可正常进行。 */ }
-  }, [messages, draft, execution, selectedProviderId]);
+      const detail = await apiAgentConversations.detail(id);
+      const saved = detail.messages;
+      setMessages(saved.length ? saved.map(toChatMessage) : INITIAL_MESSAGES);
+      setMessagePage(0);
+      setHasMoreMessages(detail.hasMore);
+      setActiveConversationId(id);
+      localStorage.setItem(ACTIVE_CONVERSATION_KEY, id);
+      if (detail.conversation.providerId) setSelectedProviderId(detail.conversation.providerId);
+      setDraft(null);
+      setExecution(null);
+      const lastResult = [...saved].reverse().find(item =>
+        item.response?.draft || item.response?.deleteDraft || item.response?.batchDraft || item.response?.execution);
+      const response = lastResult?.response;
+      const restored: PendingDraft | null = response?.batchDraft
+        ? { kind: 'batch', data: response.batchDraft }
+        : response?.deleteDraft ? { kind: 'delete', data: response.deleteDraft }
+        : response?.draft ? { kind: 'create', data: response.draft } : null;
+      if (restored) {
+        try {
+          const { status } = await apiAgentConversations.actionStatus(id, restored.data.actionId);
+          setDraft({ ...restored, data: { ...restored.data, status } } as PendingDraft);
+          if (status === 'EXECUTED') setExecution({
+            actionId: restored.data.actionId, actionType: restored.data.actionType,
+            status, displaySummary: restored.data.displaySummary, snapshot: null,
+          });
+        } catch {
+          setDraft({ ...restored, data: { ...restored.data, status: 'EXPIRED' } } as PendingDraft);
+        }
+      } else if (response?.execution) setExecution(response.execution);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '读取会话失败');
+    } finally {
+      setLoadingConversation(false);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    apiAgentConversations.list().then(async list => {
+      if (!active) return;
+      let preferredId = localStorage.getItem(ACTIVE_CONVERSATION_KEY);
+      try {
+        const legacy = sessionStorage.getItem('wealthflow-agent-session-v2');
+        if (legacy && !sessionStorage.getItem('wealthflow-agent-session-imported')) {
+          const old = JSON.parse(legacy) as { messages?: ChatMessage[]; providerId?: string };
+          const oldMessages = (old.messages ?? []).filter(item =>
+            !item.loading && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string');
+          if (oldMessages.length) {
+            const imported = await apiAgentConversations.create();
+            await apiAgentConversations.importLegacy(imported.id,
+              oldMessages.slice(-40).map(({ role, content }) => ({ role, content })));
+            preferredId = imported.id;
+            if (old.providerId) setSelectedProviderId(old.providerId);
+            list = await apiAgentConversations.list();
+          }
+          sessionStorage.setItem('wealthflow-agent-session-imported', '1');
+        }
+      } catch { message.warning('旧标签页的会话未能导入，原始记录仍保留在浏览器中'); }
+      if (!list.length) list = [await apiAgentConversations.create()];
+      if (!active) return;
+      setConversations(list);
+      await loadConversation(list.some(item => item.id === preferredId) ? preferredId! : list[0].id);
+    }).catch(err => {
+      if (active) { setLoadingConversation(false); message.error(err instanceof Error ? err.message : '读取会话失败'); }
+    });
+    return () => { active = false; };
+  }, []);
+
+  const refreshConversations = async () => setConversations(await apiAgentConversations.list());
+  const createConversation = async () => {
+    if (sending || confirming || cancelling || creatingDraft) return;
+    try {
+      const created = await apiAgentConversations.create();
+      await refreshConversations();
+      await loadConversation(created.id);
+    } catch (err) { message.error(err instanceof Error ? err.message : '新建会话失败'); }
+  };
+  const renameConversation = async (item: AgentConversation) => {
+    const title = window.prompt('会话名称', item.title)?.trim();
+    if (!title || title === item.title) return;
+    try { await apiAgentConversations.rename(item.id, title); await refreshConversations(); }
+    catch (err) { message.error(err instanceof Error ? err.message : '重命名失败'); }
+  };
+  const deleteConversation = (item: AgentConversation) => {
+    Modal.confirm({ title: '删除会话？', content: `“${item.title}”的聊天记录将被永久删除。`,
+      okText: '删除', okButtonProps: { danger: true }, cancelText: '取消',
+      onOk: async () => {
+        await apiAgentConversations.delete(item.id);
+        let remaining = await apiAgentConversations.list();
+        if (!remaining.length) remaining = [await apiAgentConversations.create()];
+        setConversations(remaining);
+        if (item.id === activeConversationId) await loadConversation(remaining[0].id);
+      },
+    });
+  };
+  const loadOlder = async () => {
+    if (!activeConversationId || !hasMoreMessages) return;
+    try {
+      const nextPage = messagePage + 1;
+      const detail = await apiAgentConversations.detail(activeConversationId, nextPage);
+      setMessages(previous => [...detail.messages.map(toChatMessage), ...previous]);
+      setMessagePage(nextPage);
+      setHasMoreMessages(detail.hasMore);
+    } catch (err) { message.error(err instanceof Error ? err.message : '读取消息失败'); }
+  };
 
   useEffect(() => {
     let cancelledRequest = false;
@@ -185,7 +283,7 @@ const Agent: React.FC = () => {
 
   const sendMessage = async (text?: string) => {
     const content = (text ?? input).trim();
-    if (!content || sending || confirming || cancelling || creatingDraft || !selectedProviderId) return;
+    if (!content || sending || confirming || cancelling || creatingDraft || !selectedProviderId || !activeConversationId || loadingConversation) return;
     if (pending) { message.info('请先确认或取消右侧草案，再发起新的请求'); return; }
     if (!aiPermission) { message.info('正在读取 AI 权限，请稍后再发送'); return; }
 
@@ -203,14 +301,6 @@ const Agent: React.FC = () => {
       setSending(false);
       return;
     }
-
-    // 只发送最近 8 条用户/助手聊天记录，不发送 API Key 与系统提示词
-    const history: AgentChatMessage[] = messages
-      .slice(-8)
-      .map((item) => ({
-        role: item.role as AgentChatMessage['role'],
-        content: item.content.slice(0, 2000),
-      }));
 
     const userMessage: ChatMessage = {
       id: Date.now(),
@@ -231,11 +321,8 @@ const Agent: React.FC = () => {
     ]);
     setInput('');
     try {
-      const result = await apiAgentChat.chat({
-        providerId: selectedProviderId,
-        message: content,
-        history,
-      });
+      const saved = await apiAgentConversations.send(activeConversationId, selectedProviderId, content);
+      const result = saved.response!;
 
       const hasOperation = Boolean(result.draft || result.deleteDraft || result.batchDraft || result.execution);
       const unsupportedClaim = !hasOperation && actionStatusClaim(result.reply);
@@ -245,13 +332,11 @@ const Agent: React.FC = () => {
         ? `${result.reply}\n\n系统状态：本次未生成草案，也未修改数据。`
         : result.reply;
 
-      setMessages((previous) =>
-        previous.map((item) =>
-          item.id === placeholderId
-            ? { ...item, content: shownReply, loading: false, steps: result.steps }
-            : item
-        )
-      );
+      setMessages((previous) => previous.map((item) =>
+        item.id === placeholderId
+          ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps }
+          : item));
+      void refreshConversations().catch(() => {});
       if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
 
       if (result.draft) {
@@ -280,7 +365,7 @@ const Agent: React.FC = () => {
       }
     } catch (err) {
       setMessages((previous) =>
-        previous.filter((item) => item.id !== placeholderId)
+        previous.filter((item) => item.id !== placeholderId && item.id !== userMessage.id)
       );
       if (err instanceof Error) {
         message.error(err.message);
@@ -292,7 +377,7 @@ const Agent: React.FC = () => {
   };
 
   const generateDraft = async () => {
-    if (sending || pending || confirming || cancelling || creatingDraft) return;
+    if (sending || pending || confirming || cancelling || creatingDraft || !activeConversationId) return;
     try {
       const values = await form.validateFields();
       const snapshotDate = values.snapshotDate.format('YYYY-MM-DD');
@@ -322,6 +407,9 @@ const Agent: React.FC = () => {
       });
 
       setDraft({ kind: 'create', data: created });
+      const saved = await apiAgentConversations.attachManualDraft(activeConversationId, created);
+      setMessages(previous => [...previous, toChatMessage(saved)]);
+      void refreshConversations().catch(() => {});
       message.success('草案已生成，请核对后确认');
     } catch (err) {
       if (err instanceof Error) {
@@ -347,10 +435,13 @@ const Agent: React.FC = () => {
 
       if (result.status === 'EXECUTED') {
         refreshSnapshots();
-        setMessages(previous => [...previous, {
-          id: Date.now(), role: 'assistant',
-          content: `已执行操作（${draft.data.actionId}）：${draft.data.displaySummary}。执行结果：${result.displaySummary}`,
-        }]);
+        if (activeConversationId) {
+          try {
+            const saved = await apiAgentConversations.recordActionOutcome(activeConversationId, draft.data.actionId);
+            setMessages(previous => [...previous, toChatMessage(saved)]);
+            void refreshConversations().catch(() => {});
+          } catch { message.warning('操作已执行，但会话记录未能更新；重新打开会话可查看最新状态'); }
+        }
         message.success(
           result.displaySummary ||
             (draft.kind === 'delete' ? '快照已删除' : '快照已创建')
@@ -399,9 +490,13 @@ const Agent: React.FC = () => {
           },
         };
       });
-      setMessages(previous => [...previous, {
-        id: Date.now(), role: 'assistant', content: `已取消操作（${draft.data.actionId}），未执行：${draft.data.displaySummary}`,
-      }]);
+      if (activeConversationId) {
+        try {
+          const saved = await apiAgentConversations.recordActionOutcome(activeConversationId, draft.data.actionId);
+          setMessages(previous => [...previous, toChatMessage(saved)]);
+          void refreshConversations().catch(() => {});
+        } catch { message.warning('操作已取消，但会话记录未能更新；重新打开会话可查看最新状态'); }
+      }
       message.success(result.displaySummary || '草案已取消');
     } catch (err) {
       actionError(err);
@@ -425,8 +520,31 @@ const Agent: React.FC = () => {
         subtitle="查询和分析资产数据，按设置中的权限处理修改"
       />
 
+      <Card size="small" title="会话" style={{ marginBottom: 16 }}
+        extra={<Button size="small" icon={<PlusOutlined />} onClick={createConversation}
+          disabled={sending || confirming || cancelling || creatingDraft}>新建会话</Button>}>
+        <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+          <Space wrap>
+            {conversations.map(item => (
+              <Space.Compact key={item.id}>
+                <Button type={item.id === activeConversationId ? 'primary' : 'default'}
+                  loading={loadingConversation && item.id === activeConversationId}
+                  disabled={sending || confirming || cancelling || creatingDraft || loadingConversation}
+                  onClick={() => loadConversation(item.id)}>{item.title}</Button>
+                <Button icon={<EditOutlined />} aria-label={`重命名 ${item.title}`}
+                  disabled={sending || confirming || cancelling || creatingDraft || loadingConversation}
+                  onClick={() => renameConversation(item)} />
+                <Button icon={<DeleteOutlined />} aria-label={`删除 ${item.title}`}
+                  disabled={sending || confirming || cancelling || creatingDraft || loadingConversation}
+                  onClick={() => deleteConversation(item)} />
+              </Space.Compact>
+            ))}
+          </Space>
+        </div>
+      </Card>
+
       <Row gutter={[16, 16]}>
-        <Col xs={24} xl={15}>
+        <Col xs={24} xl={19}>
           <Card
             title={<Space><RobotOutlined /> 与 WealthFlow 对话</Space>}
             styles={{ body: { padding: 0 } }}
@@ -454,6 +572,7 @@ const Agent: React.FC = () => {
                 background: token.colorBgLayout,
               }}
             >
+              {hasMoreMessages && <Button block size="small" onClick={loadOlder}>加载更早消息</Button>}
               <List
                 split={false}
                 dataSource={messages}
@@ -524,12 +643,12 @@ const Agent: React.FC = () => {
               <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>
                 {pending && <Alert type="info" showIcon message="请先核对右侧草案并确认或取消，再继续对话" />}
               </Space>
-              <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
+              <Space size={8} style={{ width: '100%', marginBottom: 12, overflowX: 'auto', whiteSpace: 'nowrap' }}>
                 {SUGGESTIONS.map((suggestion) => (
                   <Button
                     key={suggestion}
                     size="small"
-                    disabled={sending || pending || confirming || cancelling || providers.length === 0 || !aiPermission}
+                    disabled={sending || pending || confirming || cancelling || providers.length === 0 || !aiPermission || loadingConversation || !activeConversationId}
                     onClick={() => sendMessage(suggestion)}
                   >
                     {suggestion}
@@ -545,7 +664,7 @@ const Agent: React.FC = () => {
                     type="primary"
                     icon={<SendOutlined />}
                     loading={sending}
-                    disabled={pending || confirming || cancelling || creatingDraft || providers.length === 0 || !selectedProviderId || !aiPermission}
+                    disabled={pending || confirming || cancelling || creatingDraft || providers.length === 0 || !selectedProviderId || !aiPermission || loadingConversation || !activeConversationId}
                   >
                     发送
                   </Button>
@@ -557,7 +676,7 @@ const Agent: React.FC = () => {
           </Card>
         </Col>
 
-        <Col xs={24} xl={9}>
+        <Col xs={24} xl={5}>
           <Card
             title="操作状态"
             extra={
@@ -775,7 +894,7 @@ const Agent: React.FC = () => {
                     block
                     icon={<FileAddOutlined />}
                     loading={creatingDraft}
-                    disabled={sending || confirming || cancelling}
+                    disabled={sending || confirming || cancelling || loadingConversation || !activeConversationId}
                     onClick={generateDraft}
                   >
                     生成待确认草案
@@ -785,16 +904,6 @@ const Agent: React.FC = () => {
             )}
           </Card>
 
-          <Card title="Agent 工作方式" size="small" style={{ marginTop: 16 }}>
-            <Space direction="vertical" size={6}>
-              <Text>1. 理解你的问题或操作意图</Text>
-              <Text>2. 查询本地数据或准备操作</Text>
-              <Text>3. 展示数据依据与影响范围</Text>
-              <Text>4. {aiPermission === 'READ_ONLY' ? '不执行数据修改'
-                : aiPermission === 'DIRECT' ? '校验通过后直接执行明确要求的修改'
-                : '在你确认草案后执行写入'}</Text>
-            </Space>
-          </Card>
         </Col>
       </Row>
     </>
