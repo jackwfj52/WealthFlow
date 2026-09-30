@@ -30,6 +30,14 @@ public class BatchSnapshotActionService {
     public record Payload(List<BatchSnapshotDraft.Change> changes) {}
 
     public BatchSnapshotDraft propose(JsonNode args) {
+        return propose(args, false);
+    }
+
+    public BatchSnapshotDraft proposeSimulated(JsonNode args) {
+        return propose(args, true);
+    }
+
+    private BatchSnapshotDraft propose(JsonNode args, boolean simulated) {
         String operation = text(args, "operation");
         PendingActionType type = switch (operation) {
             case "create" -> PendingActionType.BATCH_CREATE_SNAPSHOTS;
@@ -39,8 +47,14 @@ public class BatchSnapshotActionService {
         };
         List<BatchSnapshotDraft.Change> changes = new ArrayList<>();
         if (operation.equals("create")) {
-            onlyFields(args, "operation", "entries", "startDate", "endDate", "items");
             if (args.hasNonNull("entries")) {
+                onlyFields(args, "operation", "entries", "source", "simulationDescription");
+                if (simulated) {
+                    if (!"ai_generated".equals(text(args, "source"))) throw invalid("模拟草案来源无效");
+                    text(args, "simulationDescription");
+                } else if (args.has("source") || args.has("simulationDescription")) {
+                    throw invalid("只有通过校验的AI模拟草案可以标注来源");
+                }
                 if (args.hasNonNull("startDate") || args.hasNonNull("endDate") || args.hasNonNull("items"))
                     throw invalid("逐日明细与统一日期范围不能混用");
                 JsonNode entries = args.get("entries");
@@ -50,6 +64,7 @@ public class BatchSnapshotActionService {
                     addCreate(changes, date(entry, "snapshotDate"), parseItems(entry.get("items")));
                 }
             } else {
+                onlyFields(args, "operation", "startDate", "endDate", "items");
                 LocalDate start = date(args, "startDate"), end = date(args, "endDate");
                 long days = ChronoUnit.DAYS.between(start, end) + 1;
                 if (days < 1 || days > 366) throw invalid("创建范围应为1至366天");
@@ -77,17 +92,25 @@ public class BatchSnapshotActionService {
                     changes.add(new BatchSnapshotDraft.Change(snapshot.getSnapshotDate(), snapshot.getItems(), after));
             }
         }
-        if (changes.isEmpty()) throw invalid("数据已经符合要求，没有需要修改的快照");
+        if (changes.isEmpty()) throw invalid(operation.equals("create")
+                ? "所选日期已经都有快照，无需新增" : "数据已经符合要求，没有需要修改的快照");
         changes.sort(Comparator.comparing(BatchSnapshotDraft.Change::snapshotDate));
         if (changes.stream().map(BatchSnapshotDraft.Change::snapshotDate).distinct().count() != changes.size())
             throw invalid("同一草案不能重复操作同一个日期");
         String verb = operation.equals("create") ? "新增" : operation.equals("update") ? "修改" : "删除";
+        String simulationDescription = args.hasNonNull("simulationDescription")
+                ? text(args, "simulationDescription") : "";
+        if (simulationDescription.length() > 120) throw invalid("模拟规则说明过长");
         String summary = "将" + verb + " " + changes.get(0).snapshotDate() + " 至 "
                 + changes.get(changes.size() - 1).snapshotDate() + " 共 " + changes.size() + " 天快照"
-                + (operation.equals("delete") ? "，删除后不可恢复" : "，请核对逐日明细");
+                + (operation.equals("delete") ? "，删除后不可恢复"
+                : simulated
+                ? "（AI生成的模拟数据，非真实资产记录；已跳过现有日期；"
+                        + simulationDescription + "），请核对逐日明细" : "，请核对逐日明细");
         try {
             var action = actions.create(type, json.writeValueAsString(new Payload(changes)), summary);
-            return new BatchSnapshotDraft(action.getId(), type, action.getStatus(), summary, action.getExpiresAt(), changes);
+            return new BatchSnapshotDraft(action.getId(), type, action.getStatus(), summary,
+                    action.getExpiresAt(), simulated, changes);
         } catch (JsonProcessingException e) { throw invalid("无法保存操作草案"); }
     }
 
