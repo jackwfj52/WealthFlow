@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * AI 助手聊天接口。
  *
- * <p>模型只能产生普通回答或创建快照草案建议；
- * 任何数据写入都必须经用户点击确认后走独立确认接口。</p>
+ * <p>模型只能产生普通回答或结构化快照操作建议；
+ * 服务端按照当前AI权限档位决定拒绝写入、返回待确认草案或校验后直接执行。</p>
  */
 @RestController
 @RequiredArgsConstructor

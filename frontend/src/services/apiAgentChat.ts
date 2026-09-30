@@ -3,13 +3,14 @@
  *
  * 只发送最近 8 条 user/assistant 历史消息；绝不发送 API Key、
  * 系统提示词或草案内部 payload。draft 为后端校验通过后的
- * 待确认草案，仍须用户点击确认才会写入。
+ * 待确认草案；最高权限下后端会直接执行并返回 execution。
  */
 import { apiClient } from './apiClient';
 import type {
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
   BatchSnapshotDraftResult,
+  PendingActionExecutionResult,
 } from './apiAgentActions';
 
 export interface AgentChatMessage {
@@ -25,7 +26,7 @@ export interface AgentChatPayload {
 
 /**
  * 聊天响应：draft / deleteDraft 仅在模型建议对应操作且后端校验通过时非空（两者互斥）；
- * draftError 在草案无法创建时给出用户友好提示。
+ * draftError 在草案无法创建时给出用户友好提示；execution 为直接执行结果。
  */
 export interface AgentChatResult {
   reply: string;
@@ -33,6 +34,7 @@ export interface AgentChatResult {
   deleteDraft: DeleteSnapshotDraftResult | null;
   draftError: string | null;
   batchDraft: BatchSnapshotDraftResult | null;
+  execution: PendingActionExecutionResult | null;
   steps: string[];
 }
 
