@@ -44,6 +44,7 @@ import {
   type RestoreMode,
 } from '../snapshots/importExport';
 import AiProviderSettings from './aiProviders';
+import AiPermissionSettings from './aiPermission';
 
 const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -377,6 +378,7 @@ const Settings: React.FC = () => {
       </Card>
 
       <AiProviderSettings />
+      <AiPermissionSettings />
 
       <Card title="数据管理" style={{ maxWidth: 600 }}>
         {USE_MOCK ? (
@@ -441,7 +443,7 @@ const Settings: React.FC = () => {
         <Divider />
 
         <Button type="link" onClick={resetSettings} style={{ padding: 0 }}>
-          恢复默认设置
+          恢复默认界面设置
         </Button>
       </Card>
 
