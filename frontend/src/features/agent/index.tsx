@@ -46,6 +46,7 @@ import { aiProviderService } from '../../services/apiAgentProviders';
 import type { AiProviderConfig } from '../../services/apiAgentProviders';
 import { apiAgentChat } from '../../services/apiAgentChat';
 import type { AgentChatMessage } from '../../services/apiAgentChat';
+import { apiAgentPermission, type AiPermissionLevel } from '../../services/apiAgentPermission';
 import BatchDraftDetails from './BatchDraftDetails';
 import { ApiError } from '../../services/apiClient';
 
@@ -57,7 +58,7 @@ interface ChatMessage {
   id: number;
   role: MessageRole;
   content: string;
-  /** 模型返回前显示"正在分析..."占位 */
+  /** 模型返回前显示计算占位 */
   loading?: boolean;
   steps?: string[];
 }
@@ -76,16 +77,25 @@ type PendingDraft =
 const SUGGESTIONS = [
   '分析最近180天资产变化，并说明数据局限',
   '我的资产主要集中在哪里？',
-  '帮我创建今天的资产快照',
+  '新增9月20日到今天的快照，数据自拟，整体每天波动约2%，股票每天波动约5%',
   '近半年变化最大的分类是什么？',
 ];
+
+function actionStatusClaim(reply: string) {
+  return /(?:成功|我已|我已经|已为你|已经为你).{0,10}(?:生成|创建|新增|修改|删除|保存|执行)|(?:^|[。！\n])(?:已|已经).{0,8}(?:生成|创建|新增|修改|删除|保存|执行)|(?:草案|快照).{0,8}(?:已|已经).{0,8}(?:生成|创建|新增|修改|删除)|(?:草案|快照).{0,8}(?:生成好了|准备好了|做好了|完成了)|(?:等你|等待你|请你|请在).{0,12}(?:查阅|审核|确认)/.test(reply);
+}
+
+function asksToChangeData(text: string) {
+  return /新增|添加|创建|生成|补齐|补录|修改|调整|更改|改为|设为|删除|移除|清空/.test(text)
+    && /快照|资产|金额|分类|数据|股票|现金/.test(text);
+}
 
 const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 1,
     role: 'assistant',
     content:
-      '你好，我可以查询完整资产历史、分析变化、起草批量增删改操作。所有数据修改都需在右侧核对后确认。',
+      '你好，我可以查询完整资产历史、分析变化，并按设置中的 AI 权限处理批量增删改。你也可以让我按指定波动率逐日计算模拟金额。',
   },
 ];
 
@@ -114,6 +124,7 @@ const Agent: React.FC = () => {
   const [form] = Form.useForm<DraftEntryFormValues>();
 
   const [providers, setProviders] = useState<AiProviderConfig[]>([]);
+  const [aiPermission, setAiPermission] = useState<AiPermissionLevel | null>(null);
   const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>(session.providerId);
   const [sending, setSending] = useState(false);
 
@@ -164,10 +175,34 @@ const Agent: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    apiAgentPermission.get()
+      .then(result => { if (active) setAiPermission(result.level); })
+      .catch(err => { if (active) message.error(err instanceof Error ? err.message : 'AI 权限读取失败'); });
+    return () => { active = false; };
+  }, []);
+
   const sendMessage = async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content || sending || confirming || cancelling || creatingDraft || !selectedProviderId) return;
     if (pending) { message.info('请先确认或取消右侧草案，再发起新的请求'); return; }
+    if (!aiPermission) { message.info('正在读取 AI 权限，请稍后再发送'); return; }
+
+    setSending(true);
+    try {
+      const latest = await apiAgentPermission.get();
+      if (latest.level !== aiPermission) {
+        setAiPermission(latest.level);
+        message.warning('AI 权限已变更，请查看当前档位后重新发送');
+        setSending(false);
+        return;
+      }
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'AI 权限读取失败');
+      setSending(false);
+      return;
+    }
 
     // 只发送最近 8 条用户/助手聊天记录，不发送 API Key 与系统提示词
     const history: AgentChatMessage[] = messages
@@ -195,8 +230,6 @@ const Agent: React.FC = () => {
       },
     ]);
     setInput('');
-    setSending(true);
-
     try {
       const result = await apiAgentChat.chat({
         providerId: selectedProviderId,
@@ -204,13 +237,22 @@ const Agent: React.FC = () => {
         history,
       });
 
+      const hasOperation = Boolean(result.draft || result.deleteDraft || result.batchDraft || result.execution);
+      const unsupportedClaim = !hasOperation && actionStatusClaim(result.reply);
+      const shownReply = unsupportedClaim
+        ? '模型声称操作已完成，但系统没有收到草案或执行结果。本次未生成草案，也未修改数据。请重新明确日期、分类和金额后再试。'
+        : !hasOperation && !result.draftError && asksToChangeData(content)
+        ? `${result.reply}\n\n系统状态：本次未生成草案，也未修改数据。`
+        : result.reply;
+
       setMessages((previous) =>
         previous.map((item) =>
           item.id === placeholderId
-            ? { ...item, content: result.reply, loading: false, steps: result.steps }
+            ? { ...item, content: shownReply, loading: false, steps: result.steps }
             : item
         )
       );
+      if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
 
       if (result.draft) {
         setDraft({ kind: 'create', data: result.draft });
@@ -230,6 +272,12 @@ const Agent: React.FC = () => {
         setExecution(null);
         message.success('批量草案已生成，请核对逐日明细');
       }
+      if (result.execution) {
+        setDraft(null);
+        setExecution(result.execution);
+        refreshSnapshots();
+        message.success(result.execution.displaySummary || 'AI 操作已直接完成');
+      }
     } catch (err) {
       setMessages((previous) =>
         previous.filter((item) => item.id !== placeholderId)
@@ -239,6 +287,7 @@ const Agent: React.FC = () => {
       }
     } finally {
       setSending(false);
+      void apiAgentPermission.get().then(result => setAiPermission(result.level)).catch(() => {});
     }
   };
 
@@ -373,7 +422,7 @@ const Agent: React.FC = () => {
     <>
       <PageHeader
         title="AI 助手"
-        subtitle="理解资产数据，并在你确认后协助完成操作"
+        subtitle="查询和分析资产数据，按设置中的权限处理修改"
       />
 
       <Row gutter={[16, 16]}>
@@ -387,7 +436,13 @@ const Agent: React.FC = () => {
               type="info"
               icon={<RobotOutlined />}
               message="已接入 AI 模型"
-              description="回复基于本地资产数据生成；模型只能提出草案建议，写入前必须由你确认。"
+              description={aiPermission === 'READ_ONLY'
+                ? '当前为只读：AI 只能查询和分析。'
+                : aiPermission === 'DIRECT'
+                ? '当前为直接执行：你明确要求修改时，AI 操作经后端校验后立即写入。'
+                : aiPermission === 'REVIEW'
+                ? '当前为审核模式：AI 可以准备草案，写入前由你确认。'
+                : '正在读取服务端 AI 权限设置。'}
               style={{ margin: 16, marginBottom: 0 }}
             />
 
@@ -424,7 +479,7 @@ const Agent: React.FC = () => {
                           {item.loading ? (
                             <Space size={8}>
                               <Spin size="small" />
-                              <Text>正在分析...</Text>
+                              <Text>正在查询或逐日计算，可能需要多次调用模型...</Text>
                             </Space>
                           ) : (
                             <>
@@ -448,7 +503,7 @@ const Agent: React.FC = () => {
                   showIcon
                   type="warning"
                   message="请先到设置页面配置 AI 提供商"
-                  description="配置 AI 提供商后才能对话；所有写入操作仍需要你确认。"
+                  description="配置 AI 提供商后才能对话；修改方式由设置页中的 AI 权限决定。"
                   style={{ marginBottom: 12 }}
                 />
               ) : (
@@ -474,7 +529,7 @@ const Agent: React.FC = () => {
                   <Button
                     key={suggestion}
                     size="small"
-                    disabled={sending || pending || confirming || cancelling || providers.length === 0}
+                    disabled={sending || pending || confirming || cancelling || providers.length === 0 || !aiPermission}
                     onClick={() => sendMessage(suggestion)}
                   >
                     {suggestion}
@@ -490,7 +545,7 @@ const Agent: React.FC = () => {
                     type="primary"
                     icon={<SendOutlined />}
                     loading={sending}
-                    disabled={pending || confirming || cancelling || creatingDraft || providers.length === 0 || !selectedProviderId}
+                    disabled={pending || confirming || cancelling || creatingDraft || providers.length === 0 || !selectedProviderId || !aiPermission}
                   >
                     发送
                   </Button>
@@ -504,7 +559,7 @@ const Agent: React.FC = () => {
 
         <Col xs={24} xl={9}>
           <Card
-            title="待确认操作"
+            title="操作状态"
             extra={
               executed ? (
                 <Badge status="success" text="已执行" />
@@ -558,7 +613,7 @@ const Agent: React.FC = () => {
                 )}
 
                 <Button block onClick={resetDraft}>
-                  重新生成草案
+                  发起新操作
                 </Button>
               </Space>
             ) : draft ? (
@@ -664,10 +719,13 @@ const Agent: React.FC = () => {
                   {draft.data.expiresAt.replace('T', ' ')}
                 </Text>
               </Space>
+            ) : aiPermission === 'READ_ONLY' ? (
+              <Alert type="info" showIcon message="AI 当前为只读模式"
+                description="AI 可以查询和分析资产数据。需要由 AI 新增、修改或删除快照时，请先在设置页调整权限。" />
             ) : (
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 <Text type="secondary">
-                  暂无待确认草案。填写快照日期与各分类金额后生成草案，确认前不会写入任何资产数据。
+                  暂无待确认草案。你也可以手动填写金额生成草案；手动草案始终需要确认后才写入。
                 </Text>
 
                 <Form form={form} layout="vertical">
@@ -730,9 +788,11 @@ const Agent: React.FC = () => {
           <Card title="Agent 工作方式" size="small" style={{ marginTop: 16 }}>
             <Space direction="vertical" size={6}>
               <Text>1. 理解你的问题或操作意图</Text>
-              <Text>2. 查询本地数据或创建操作草案</Text>
+              <Text>2. 查询本地数据或准备操作</Text>
               <Text>3. 展示数据依据与影响范围</Text>
-              <Text>4. 仅在你确认后执行写入</Text>
+              <Text>4. {aiPermission === 'READ_ONLY' ? '不执行数据修改'
+                : aiPermission === 'DIRECT' ? '校验通过后直接执行明确要求的修改'
+                : '在你确认草案后执行写入'}</Text>
             </Space>
           </Card>
         </Col>

@@ -72,6 +72,7 @@ export interface BatchSnapshotDraftResult {
   status: PendingActionStatus;
   displaySummary: string;
   expiresAt: string;
+  simulated: boolean;
   changes: { snapshotDate: string; before: DraftSnapshotItem[]; after: DraftSnapshotItem[] }[];
 }
 
