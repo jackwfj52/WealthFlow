@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.jack.wealthflow.mapper.AiPermissionMapper">
+    <select id="findLevel" resultType="string">
+        SELECT level FROM ai_agent_permission WHERE id = 1
+    </select>
+
+    <update id="updateLevel">
+        UPDATE ai_agent_permission SET level = #{level} WHERE id = 1
+    </update>
+</mapper>

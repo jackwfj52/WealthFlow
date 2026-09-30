@@ -39,3 +39,10 @@ CREATE TABLE IF NOT EXISTS ai_provider_config (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS ai_agent_permission (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    level TEXT NOT NULL CHECK (level IN ('READ_ONLY', 'REVIEW', 'DIRECT'))
+);
+
+INSERT OR IGNORE INTO ai_agent_permission (id, level) VALUES (1, 'REVIEW');
