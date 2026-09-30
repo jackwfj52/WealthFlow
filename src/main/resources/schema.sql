@@ -28,6 +28,28 @@ CREATE TABLE IF NOT EXISTS pending_action (
 CREATE INDEX IF NOT EXISTS idx_pending_action_status_expires_at
     ON pending_action(status, expires_at);
 
+CREATE TABLE IF NOT EXISTS agent_conversation (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    provider_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_conversation_message (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    response_json TEXT,
+    action_id TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES agent_conversation(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_conversation_message_order
+    ON agent_conversation_message(conversation_id, created_at, id);
+
 CREATE TABLE IF NOT EXISTS ai_provider_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     provider_id TEXT NOT NULL UNIQUE,

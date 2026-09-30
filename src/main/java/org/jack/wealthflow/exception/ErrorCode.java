@@ -16,6 +16,7 @@ public enum ErrorCode {
 
     PROVIDER_CONFIG_NOT_FOUND(40404, 404, "AI 提供商配置不存在"),
     PROVIDER_ID_EXISTS(40907, 409, "该提供商已配置"),
+    AGENT_CONVERSATION_NOT_FOUND(40405, 404, "会话不存在"),
 
     SERVER_ERROR(50000, 500, "服务器内部错误"),
     SNAPSHOT_DRAFT_PARSE_FAILED(50001, 500, "快照草案数据已损坏，无法执行"),
