@@ -14,8 +14,19 @@ public record AgentChatResponse(
         String draftError,
         BatchSnapshotDraft batchDraft,
         java.util.List<String> steps,
-        PendingActionExecutionResponse execution
+        PendingActionExecutionResponse execution,
+        java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources
 ) {
+    public AgentChatResponse {
+        steps = steps == null ? java.util.List.of() : java.util.List.copyOf(steps);
+        sources = sources == null ? java.util.List.of() : java.util.List.copyOf(sources);
+    }
+    public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
+                             DeleteSnapshotDraftResponse deleteDraft, String draftError,
+                             BatchSnapshotDraft batchDraft, java.util.List<String> steps,
+                             PendingActionExecutionResponse execution) {
+        this(reply, draft, deleteDraft, draftError, batchDraft, steps, execution, java.util.List.of());
+    }
     public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
                              DeleteSnapshotDraftResponse deleteDraft, String draftError,
                              BatchSnapshotDraft batchDraft, java.util.List<String> steps) {
