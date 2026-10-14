@@ -7,6 +7,7 @@ const Snapshots = lazy(() => import('../features/snapshots'));
 const Categories = lazy(() => import('../features/categories'));
 const Trends = lazy(() => import('../features/trends'));
 const Agent = lazy(() => import('../features/agent'));
+const Knowledge = lazy(() => import('../features/knowledge'));
 const Settings = lazy(() => import('../features/settings'));
 
 const Loading = () => (
@@ -22,6 +23,7 @@ const AppRouter: React.FC = () => (
       <Route path="/categories" element={<Categories />} />
       <Route path="/trends" element={<Trends />} />
       <Route path="/agent" element={<Agent />} />
+      <Route path="/knowledge" element={<Knowledge />} />
       <Route path="/settings" element={<Settings />} />
     </Routes>
   </Suspense>

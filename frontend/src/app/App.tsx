@@ -6,6 +6,7 @@ import {
   AppstoreOutlined,
   LineChartOutlined,
   RobotOutlined,
+  BookOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -23,6 +24,7 @@ const menuItems = [
   { key: '/categories', icon: <AppstoreOutlined />, label: '分类管理' },
   { key: '/trends', icon: <LineChartOutlined />, label: '趋势分析' },
   { key: '/agent', icon: <RobotOutlined />, label: 'AI 助手' },
+  { key: '/knowledge', icon: <BookOutlined />, label: '投资知识库' },
   { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
 

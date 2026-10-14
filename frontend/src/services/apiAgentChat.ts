@@ -6,6 +6,7 @@
  * 待确认草案；最高权限下后端会直接执行并返回 execution。
  */
 import { apiClient } from './apiClient';
+import type { KnowledgeSource } from './apiKnowledge';
 import type {
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
@@ -36,6 +37,8 @@ export interface AgentChatResult {
   batchDraft: BatchSnapshotDraftResult | null;
   execution: PendingActionExecutionResult | null;
   steps: string[];
+  /** Older conversations predate source persistence. */
+  sources?: KnowledgeSource[];
 }
 
 export const apiAgentChat = {

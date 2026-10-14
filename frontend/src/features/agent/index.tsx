@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Col,
+  Collapse,
   DatePicker,
   Divider,
   Form,
@@ -18,6 +19,7 @@ import {
   Space,
   Spin,
   Typography,
+  Tag,
   message,
   theme,
 } from 'antd';
@@ -34,6 +36,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { Link } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader';
 import AmountText from '../../components/AmountText';
 import { useCategories, useSnapshots } from '../../app/storage';
@@ -52,6 +55,7 @@ import type { AgentConversation, AgentConversationMessage } from '../../services
 import { apiAgentPermission, type AiPermissionLevel } from '../../services/apiAgentPermission';
 import BatchDraftDetails from './BatchDraftDetails';
 import { ApiError } from '../../services/apiClient';
+import type { KnowledgeSource } from '../../services/apiKnowledge';
 
 const { Text, Paragraph } = Typography;
 
@@ -64,6 +68,7 @@ interface ChatMessage {
   /** 模型返回前显示计算占位 */
   loading?: boolean;
   steps?: string[];
+  sources?: KnowledgeSource[];
 }
 
 interface DraftEntryFormValues {
@@ -78,6 +83,8 @@ type PendingDraft =
   | { kind: 'delete'; data: DeleteSnapshotDraftResult };
 
 const SUGGESTIONS = [
+  '根据我的生效投资策略，现在的资产配置有哪些需要关注的地方？',
+  '查找我的纳指定投策略，并列出继续投入和暂停的条件。',
   '与一个月前相比，资产配置有什么变化？',
   '最近90天，哪类资产增加最多，哪类减少最多？',
   '最近半年最大快照回撤是多少？',
@@ -85,10 +92,12 @@ const SUGGESTIONS = [
 ];
 
 function actionStatusClaim(reply: string) {
-  return /(?:成功|我已|我已经|已为你|已经为你).{0,10}(?:生成|创建|新增|修改|删除|保存|执行)|(?:^|[。！\n])(?:已|已经).{0,8}(?:生成|创建|新增|修改|删除|保存|执行)|(?:草案|快照).{0,8}(?:已|已经).{0,8}(?:生成|创建|新增|修改|删除)|(?:草案|快照).{0,8}(?:生成好了|准备好了|做好了|完成了)|(?:等你|等待你|请你|请在).{0,12}(?:查阅|审核|确认)/.test(reply);
+  return /(?:成功|我已|我已经|已为你|已经为你).{0,10}(?:生成|创建|新增|修改|删除|保存(?!的)|执行)|(?:^|[。！\n])(?:已|已经).{0,8}(?:生成|创建|新增|修改|删除|保存(?!的)|执行)|(?:草案|快照).{0,8}(?:已|已经).{0,8}(?:生成|创建|新增|修改|删除)|(?:草案|快照).{0,8}(?:生成好了|准备好了|做好了|完成了)|(?:草案|快照|操作).{0,8}(?:等你|等待你).{0,8}(?:审核|确认)|(?:请你|请在).{0,8}(?:右侧|草案).{0,8}(?:审核|确认)/.test(reply);
 }
 
 function asksToChangeData(text: string) {
+  if (/应该|是否|应不应该|要不要|该不该|建议|如何/.test(text)) return false;
+  if (/知识库|策略|笔记|资料|复盘/.test(text) && !/快照|资产金额|分类金额/.test(text)) return false;
   return /新增|添加|创建|生成|补齐|补录|修改|调整|更改|改为|设为|删除|移除|清空/.test(text)
     && /快照|资产|金额|分类|数据|股票|现金/.test(text);
 }
@@ -98,14 +107,35 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 1,
     role: 'assistant',
     content:
-      '你好，我可以查询完整资产历史、分析变化，并按设置中的 AI 权限处理批量增删改。你也可以让我按指定波动率逐日计算模拟金额。',
+      '你好，我可以参考知识库中的生效投资策略、复盘和研究资料，结合资产快照分析资产配置与投资决策，并标出资料来源。你也可以查询完整资产历史；数据修改按设置中的 AI 权限处理。',
   },
 ];
 
 const ACTIVE_CONVERSATION_KEY = 'wealthflow-active-conversation';
 const toChatMessage = (item: AgentConversationMessage): ChatMessage => ({
-  id: item.id, role: item.role, content: item.content, steps: item.response?.steps,
+  id: item.id, role: item.role, content: item.content, steps: item.response?.steps, sources: item.response?.sources ?? [],
 });
+
+const knowledgeTypeLabel = (type: KnowledgeSource['type']) => ({
+  STRATEGY: '投资策略', INVESTMENT_REVIEW: '投资复盘', RESEARCH: '研究资料', GENERAL_NOTE: '普通笔记',
+}[type] ?? type);
+
+const KnowledgeSources: React.FC<{ sources: KnowledgeSource[] }> = ({ sources }) => (
+  <Collapse size="small" style={{ marginTop: 12, whiteSpace: 'normal' }} items={[{
+    key: 'sources', label: `参考资料 (${sources.length})`,
+    children: <Space orientation="vertical" size={8} style={{ width: '100%' }}>{sources.map((source) => {
+      const query = new URLSearchParams({ documentId: source.documentId, chunkId: source.id, version: String(source.version) });
+      return <Card key={`${source.documentId}-${source.id}-${source.version}`} size="small" style={{ width: '100%' }}>
+        <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+          <Link to={`/knowledge?${query}`}>{source.title}</Link>
+          <Space wrap size={4}><Tag>{knowledgeTypeLabel(source.type)}</Tag><Text type="secondary" style={{ fontSize: 12 }}>v{source.version} · {source.updatedAt?.replace('T', ' ').slice(0, 19)}</Text></Space>
+          {source.section && <Text strong style={{ fontSize: 12 }}>{source.section}</Text>}
+          <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: '展开' }} style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 12 }}>{source.excerpt}</Paragraph>
+        </Space>
+      </Card>;
+    })}</Space>,
+  }]} />
+);
 
 const Agent: React.FC = () => {
   const { token } = theme.useToken();
@@ -334,7 +364,7 @@ const Agent: React.FC = () => {
 
       setMessages((previous) => previous.map((item) =>
         item.id === placeholderId
-          ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps }
+          ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps, sources: result.sources ?? [] }
           : item));
       void refreshConversations().catch(() => {});
       if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
@@ -517,7 +547,7 @@ const Agent: React.FC = () => {
     <>
       <PageHeader
         title="AI 助手"
-        subtitle="查询和分析资产数据，按设置中的权限处理修改"
+        subtitle="参考你的投资策略与知识资料，结合资产快照分析，并展示回答来源"
       />
 
       <Card size="small" title="会话" style={{ marginBottom: 16 }}
@@ -604,6 +634,7 @@ const Agent: React.FC = () => {
                             <>
                               {item.content}
                               {!!item.steps?.length && <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{item.steps.join(' → ')}</Text></div>}
+                              {!!item.sources?.length && <KnowledgeSources sources={item.sources} />}
                             </>
                           )}
                         </div>
@@ -657,7 +688,7 @@ const Agent: React.FC = () => {
               </Space>
               <Input.Search
                 value={input}
-                placeholder="例如：把8月所有快照的现金设为20000元"
+                placeholder="例如：根据我的定投策略，当前资产配置有什么需要关注？"
                 maxLength={2000}
                 enterButton={
                   <Button
