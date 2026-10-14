@@ -44,6 +44,7 @@ import {
   type RestoreMode,
 } from '../snapshots/importExport';
 import AiProviderSettings from './aiProviders';
+import EmbeddingSettings from './embedding';
 import AiPermissionSettings from './aiPermission';
 
 const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
@@ -173,7 +174,7 @@ const Settings: React.FC = () => {
     await snapshotService.reset([]);
     refreshCategories();
     refreshSnapshots();
-    message.success('所有数据已清空');
+    message.success('分类与快照已清空');
   }, [refreshCategories, refreshSnapshots]);
 
   const handleRestoreSeed = useCallback(async () => {
@@ -181,7 +182,7 @@ const Settings: React.FC = () => {
     await snapshotService.reset(SEED_SNAPSHOTS);
     refreshCategories();
     refreshSnapshots();
-    message.success('示例数据已恢复');
+    message.success('示例资产数据已恢复');
   }, [refreshCategories, refreshSnapshots]);
 
   const handleClearAllApi = useCallback(async () => {
@@ -189,7 +190,7 @@ const Settings: React.FC = () => {
     refreshCategories();
     refreshSnapshots();
     void refreshSysInfo();
-    message.success('所有数据已清空');
+    message.success('分类与快照已清空');
   }, [refreshCategories, refreshSnapshots, refreshSysInfo]);
 
   // --- 增长率标签颜色配置 ---
@@ -378,13 +379,14 @@ const Settings: React.FC = () => {
       </Card>
 
       <AiProviderSettings />
+      <EmbeddingSettings />
       <AiPermissionSettings />
 
-      <Card title="数据管理" style={{ maxWidth: 600 }}>
+      <Card title="资产数据管理" style={{ maxWidth: 600 }}>
         {USE_MOCK ? (
           <>
             <Typography.Paragraph type="secondary">
-              当前数据存储在浏览器 localStorage 中。清空数据不可恢复，建议先导出备份。
+              当前分类与快照存储在浏览器 localStorage 中。清空资产数据不可恢复，建议先导出备份。
             </Typography.Paragraph>
 
             <Space direction="vertical" style={{ width: '100%' }}>
@@ -393,11 +395,11 @@ const Settings: React.FC = () => {
                 icon={<UndoOutlined />}
                 onClick={handleRestoreSeed}
               >
-                恢复示例数据
+                恢复示例资产数据
               </Button>
 
               <Popconfirm
-                title="确认清空所有数据？"
+                title="确认清空资产数据？"
                 description="此操作将删除所有分类和快照数据，且不可恢复。"
                 onConfirm={handleClearAll}
                 okText="确认清空"
@@ -405,7 +407,7 @@ const Settings: React.FC = () => {
                 okButtonProps={{ danger: true }}
               >
                 <Button danger icon={<DeleteOutlined />}>
-                  清空所有数据
+                  清空资产数据
                 </Button>
               </Popconfirm>
             </Space>
@@ -417,12 +419,12 @@ const Settings: React.FC = () => {
             </Typography.Paragraph>
 
             <Popconfirm
-              title="确认清空所有数据？"
+              title="确认清空资产数据？"
               description="此操作将删除服务端数据库中的所有分类和快照数据。"
               onConfirm={() => {
                 Modal.confirm({
-                  title: '再次确认：清空全部数据？',
-                  content: '数据将被永久删除且无法恢复，请确认已做好备份。',
+                  title: '再次确认：清空分类与快照？',
+                  content: '分类与快照将被永久删除且无法恢复，请确认已做好备份。',
                   okText: '确认清空',
                   cancelText: '取消',
                   okButtonProps: { danger: true },
@@ -434,7 +436,7 @@ const Settings: React.FC = () => {
               okButtonProps={{ danger: true }}
             >
               <Button danger icon={<DeleteOutlined />}>
-                清空所有数据
+                清空资产数据
               </Button>
             </Popconfirm>
           </>
@@ -447,16 +449,16 @@ const Settings: React.FC = () => {
         </Button>
       </Card>
 
-      <Card title="数据备份与恢复" style={{ maxWidth: 600, marginBottom: 16 }}>
+      <Card title="资产数据备份与恢复" style={{ maxWidth: 600, marginBottom: 16 }}>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          导出全量数据（分类与快照）为 JSON 备份文件；导入时可选合并或覆盖模式。
+          导出分类与快照为 JSON 资产备份文件；导入时可选合并或覆盖模式。
         </Typography.Paragraph>
         <Space>
           <Button
             icon={<DownloadOutlined />}
             onClick={() => void handleExportAll()}
           >
-            导出全部数据
+            导出资产数据
           </Button>
           <Button
             icon={<UploadOutlined />}
@@ -544,7 +546,7 @@ const Settings: React.FC = () => {
                   合并：保留现有数据，已存在的快照日期跳过
                 </Radio>
                 <Radio value="overwrite">
-                  覆盖：清空现有全部数据后导入备份
+                  覆盖：清空现有分类与快照后导入资产备份
                 </Radio>
               </Space>
             </Radio.Group>
