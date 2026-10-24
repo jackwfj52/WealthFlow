@@ -195,8 +195,11 @@ export function downloadTextFile(filename: string, text: string): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // 给浏览器处理下载事件的时间，避免立即释放 Blob 导致 Edge 取消下载。
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**

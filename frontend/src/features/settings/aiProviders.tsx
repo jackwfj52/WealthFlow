@@ -353,7 +353,7 @@ const AiProviderSettings: React.FC = () => {
           <Space wrap>
             <Typography.Text strong>{label}</Typography.Text>
             {config ? (
-              <Tag color="green">已配置</Tag>
+              <Tag color={config.configured ? 'green' : 'orange'}>{config.configured ? '已配置' : '待填写 API Key'}</Tag>
             ) : (
               <Tag>未配置</Tag>
             )}
@@ -367,7 +367,7 @@ const AiProviderSettings: React.FC = () => {
                 {config.baseUrl} · 模型 {config.model}
               </Typography.Text>
               <Typography.Text type="secondary">
-                API Key：{config.maskedApiKey}
+                  API Key：{config.configured ? config.maskedApiKey : '待填写（恢复后需重新配置）'}
               </Typography.Text>
               {testResults[providerId] && !testResults[providerId].success && (
                 <Typography.Text type="danger">
@@ -498,7 +498,7 @@ const AiProviderSettings: React.FC = () => {
                 setForm((prev) => ({ ...prev, apiKey: e.target.value }))
               }
               placeholder={
-                editing
+                  editing?.configured
                   ? `${editing.maskedApiKey}（留空则不修改）`
                   : 'sk-...'
               }

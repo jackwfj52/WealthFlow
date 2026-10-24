@@ -47,3 +47,6 @@ frontend/dist/
 .venv-finance/
 __pycache__/
 docs/
+.wealthflow/
+wealthflow-full-backup-*.json
+wealthflow-backup-*.json

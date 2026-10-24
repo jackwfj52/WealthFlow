@@ -325,8 +325,9 @@ const Agent: React.FC = () => {
       .getAll()
       .then((list) => {
         if (cancelledRequest) return;
-        setProviders(list);
-        setSelectedProviderId((current) => list.some(p => p.providerId === current) ? current : list[0]?.providerId);
+        const usable = list.filter(provider => provider.configured);
+        setProviders(usable);
+        setSelectedProviderId((current) => usable.some(p => p.providerId === current) ? current : usable[0]?.providerId);
       })
       .catch((err) => {
         if (cancelledRequest) return;

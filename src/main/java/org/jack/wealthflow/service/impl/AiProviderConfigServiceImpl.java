@@ -103,7 +103,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         // 空 apiKey 时先解密旧 Key 用于掩码；解密失败则不写库，避免留下无法读取的更新
         String plainForMask = newPlainApiKey != null
                 ? newPlainApiKey
-                : secretProtector.decrypt(existingEncryptedKey);
+                : (existingEncryptedKey == null || existingEncryptedKey.isBlank() ? null : secretProtector.decrypt(existingEncryptedKey));
 
         existing.setDisplayName(request.displayName().trim());
         existing.setProtocol(normalizeProtocol(request.protocol()));
@@ -139,6 +139,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
     public AiProviderTestResponse test(String providerId) {
         AiProviderConfig config = requireConfig(providerId);
         String apiKey = decryptKey(config);
+        if (apiKey == null || apiKey.isBlank()) return new AiProviderTestResponse(false, "请重新填写该服务商的 API Key", 0L);
 
         URI uri;
         try {
@@ -200,7 +201,10 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         }
 
         // 解密结果只用于后端内部调用模型，绝不进入 Controller 或日志
-        String apiKey = secretProtector.decrypt(config.getEncryptedApiKey());
+        String apiKey = decryptKey(config);
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "请重新填写该服务商的 API Key");
+        }
 
         return new AiProviderConfigService.ResolvedConnection(
                 config.getProviderId(),
@@ -294,6 +298,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
 
     private String decryptKey(AiProviderConfig config) {
         // 解密结果只用于计算掩码，绝不离开 Service 层
+        if (config.getEncryptedApiKey() == null || config.getEncryptedApiKey().isBlank()) return null;
         return secretProtector.decrypt(config.getEncryptedApiKey());
     }
 
@@ -307,8 +312,8 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
                 config.getProtocol(),
                 config.getBaseUrl(),
                 config.getModel(),
-                true,
-                maskApiKey(plainApiKey),
+                plainApiKey != null && !plainApiKey.isBlank(),
+                plainApiKey == null || plainApiKey.isBlank() ? null : maskApiKey(plainApiKey),
                 config.getCreatedAt(),
                 config.getUpdatedAt()
         );

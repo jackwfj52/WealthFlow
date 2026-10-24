@@ -29,6 +29,7 @@ class PortfolioAgentTest {
     AiModelGateway model;
     ToolAgentChatService agent;
     BatchSnapshotActionService actions;
+    FinancialNewsService news;
     Long stocks;
     final String tool = "{\"kind\":\"tool\",\"tool\":\"query_portfolio\",\"arguments\":{}}";
     final List<JsonNode> observed = new ArrayList<>();
@@ -49,9 +50,10 @@ class PortfolioAgentTest {
         var knowledge = mock(KnowledgeSearchService.class);
         when(knowledge.search(any())).thenReturn(new KnowledgeDtos.SearchResult(List.of(), "KEYWORD", null));
         actions = mock(BatchSnapshotActionService.class);
+        news = mock(FinancialNewsService.class);
         agent = new ToolAgentChatService(providers, model, categories, mock(SnapshotQueryService.class), actions,
                 mock(AiSnapshotSimulationService.class), permission, mock(PendingActionService.class), json, knowledge,
-                mock(FinancialNewsService.class), new PortfolioQueryService(categories, holdings, db.snapshots, db.transactions));
+                news, new PortfolioQueryService(categories, holdings, db.snapshots, db.transactions));
     }
 
     void composition(String tech) {
@@ -101,6 +103,39 @@ class PortfolioAgentTest {
         var invented = agent.chat(new AgentChatRequest("p", "现在加仓英伟达怎么样？", List.of()));
         assertTrue(invented.reply().contains("未提供可核对"));
         verifyNoInteractions(actions);
+    }
+
+    @Test void failedNewsDoesNotDiscardSuccessfulPortfolioAndNegatedNewsDoesNotForceLookup() throws Exception {
+        composition("60");
+        when(news.query(any())).thenThrow(new org.jack.wealthflow.exception.BusinessException(
+                org.jack.wealthflow.exception.ErrorCode.FINANCIAL_NEWS_UNAVAILABLE, "查询超时"));
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(model.complete(anyString(), anyString(), anyString(), anyString(), anyList())).thenAnswer(call -> {
+            int round = calls.getAndIncrement();
+            if (round == 0) return tool;
+            if (round == 1) return "{\"kind\":\"tool\",\"tool\":\"query_financial_news\",\"arguments\":{}}";
+            List<AgentChatMessage> messages = call.getArgument(4);
+            String id = messages.stream().map(AgentChatMessage::content).filter(text -> text.contains("portfolio-"))
+                    .map(text -> java.util.regex.Pattern.compile("portfolio-[a-z0-9-]+").matcher(text))
+                    .filter(java.util.regex.Matcher::find).map(m -> m.group()).findFirst().orElseThrow();
+            return json.writeValueAsString(java.util.Map.of("kind", "answer", "reply", "科技占股票60%，需关注集中风险；行情尚未核实[持仓:" + id + "]。"));
+        });
+        var response = agent.chat(new AgentChatRequest("p", "现在加仓英伟达怎么样？查询最近新闻。", List.of()));
+        assertNotNull(response.portfolioContext());
+        assertTrue(response.reply().contains("60%"));
+        assertTrue(response.reply().contains("行情尚未核实"));
+        assertTrue(response.newsSources().isEmpty());
+        clearInvocations(news);
+        calls.set(0);
+        doAnswer(call -> {
+            if (calls.getAndIncrement() == 0) return tool;
+            List<AgentChatMessage> messages = call.getArgument(4);
+            String content = messages.get(messages.size() - 1).content();
+            String id = json.readTree(content.substring(content.indexOf('{'))).path("id").asText();
+            return json.writeValueAsString(java.util.Map.of("kind", "answer", "reply", "科技仓位60%，需关注集中风险[持仓:" + id + "]。"));
+        }).when(model).complete(anyString(), anyString(), anyString(), anyString(), anyList());
+        assertNotNull(agent.chat(new AgentChatRequest("p", "现在加仓英伟达怎么样？不需要联网查询新闻。", List.of())).portfolioContext());
+        verifyNoInteractions(news);
     }
 
     @Test void toolsRejectModelSuppliedAllocationAndFollowUpsReadCurrentDataAgain() throws Exception {

@@ -78,6 +78,21 @@ class AiProviderConfigServiceTest {
     }
 
     @Test
+    void restoredProviderWithoutKeyCanBeListedEditedAndRekeyed() {
+        var restored = existingConfig("");
+        when(aiProviderConfigMapper.findAll()).thenReturn(List.of(restored));
+        when(aiProviderConfigMapper.findByProviderId("openai")).thenReturn(restored);
+        when(aiProviderConfigMapper.update(any())).thenReturn(1);
+        assertFalse(aiProviderConfigService.findAll().get(0).configured());
+        assertFalse(aiProviderConfigService.test("openai").success());
+        assertThrows(BusinessException.class, () -> aiProviderConfigService.resolveConnection("openai"));
+        assertFalse(aiProviderConfigService.update("openai", validRequest("")).configured());
+        when(secretProtector.encrypt("new-key")).thenReturn("new-cipher");
+        assertTrue(aiProviderConfigService.update("openai", validRequest("new-key")).configured());
+        verify(secretProtector, never()).decrypt("");
+    }
+
+    @Test
     void shouldStoreOnlyEncryptedKeyInDatabaseOnCreate() {
         when(secretProtector.encrypt("sk-plain-secret-1234"))
                 .thenReturn("encrypted-by-dpapi");

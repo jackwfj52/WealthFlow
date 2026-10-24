@@ -90,8 +90,9 @@ public class ToolAgentChatService implements AgentChatService {
         boolean portfolioAttempted = false;
         boolean correctedPortfolio = false;
         String portfolioFailure = null;
+        String newsRequest = request.message().replaceAll("(?i)(不需要|无需|不要|不必|不用|不)(?:再|额外|联网)?(?:查询|搜索|查看|查|看|获取)?(?:实时|最新|最近|近期|财经)?(?:新闻|快讯|财经资讯|财经讯息|财经消息|news)", "");
         boolean needsNews = Pattern.compile("(?i)(最新|最近|今日|今天|本周|查询|搜索|查一下|看看).*(新闻|快讯|财经资讯|财经讯息|财经消息|news)|(新闻|快讯|财经资讯|财经讯息|财经消息|news).*(最新|最近|今日|今天|本周|查询|搜索)")
-                .matcher(request.message()).find();
+                .matcher(newsRequest).find();
         boolean investmentQuestion = needsPortfolio || (!AgentWriteIntent.explicit(request.message()) && KnowledgeIntent.investment(request.message()));
         if (needsPortfolio || (!AgentWriteIntent.explicit(request.message()) && KnowledgeIntent.needsKnowledge(request.message()))) {
             KnowledgeDtos.SearchResult context = knowledge.search(new KnowledgeDtos.Search(request.message(),
@@ -149,7 +150,7 @@ public class ToolAgentChatService implements AgentChatService {
                     }
                     return answer("尚未完成财经讯息查询，无法提供已核实的近期新闻，请重试。", null, steps);
                 }
-                if (newsAttempted && newsRetrieved.isEmpty())
+                if (newsAttempted && newsRetrieved.isEmpty() && portfolioContext == null)
                     return answer(newsFailure == null
                             ? "在所选时间范围内，数据源本次返回的有限结果中未找到可核对的财经讯息。这不代表没有相关事件；可更换关键词或稍后重试。"
                             : "财经讯息查询未完成：" + newsFailure + "。本次没有获得可核对的新闻，不据此判断市场情况。", null, steps);
@@ -196,6 +197,7 @@ public class ToolAgentChatService implements AgentChatService {
                 if (cited.stream().map(retrieved::get).anyMatch(source -> !knowledge.current(source)))
                     return answer("相关知识文档在回答期间发生变化，请重新提问以使用最新策略。", null, steps);
                 if (investmentQuestion && !hasStrategy) reply = "本次未检索到相关生效投资策略。\n\n" + reply;
+                if (newsAttempted && newsRetrieved.isEmpty()) reply = "本次未获得可核对的财经讯息，行情尚未核实；以下仅基于已登记持仓及资金约束分析。\n\n" + reply;
                 return new AgentChatResponse(reply, null, null, null, null, steps, null,
                         cited.stream().map(retrieved::get).toList(), newsCited.stream().map(newsRetrieved::get).toList(), portfolioContext);
             }

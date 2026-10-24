@@ -46,6 +46,7 @@ import {
 import AiProviderSettings from './aiProviders';
 import EmbeddingSettings from './embedding';
 import AiPermissionSettings from './aiPermission';
+import FullBackupCard from './fullBackupCard';
 
 const SettingRow: React.FC<{ label: string; children: React.ReactNode }> = ({
   label,
@@ -379,7 +380,7 @@ const Settings: React.FC = () => {
       <EmbeddingSettings />
       <AiPermissionSettings />
 
-      <Card title="资产数据管理" style={{ maxWidth: 600 }}>
+      <Card title="资产数据管理" style={{ maxWidth: 600, marginBottom: 16 }}>
         {USE_MOCK ? (
           <>
             <Typography.Paragraph type="secondary">
@@ -446,6 +447,7 @@ const Settings: React.FC = () => {
         </Button>
       </Card>
 
+      {!USE_MOCK && <FullBackupCard />}
       <Card title="资产数据备份与恢复" style={{ maxWidth: 600, marginBottom: 16 }}>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
           导出分类、快照与具体持仓为 JSON 资产备份文件；导入时可选合并或覆盖模式。

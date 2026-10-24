@@ -22,6 +22,19 @@ public class SystemController {
 
     private final SystemService systemService;
     private final AssetBackupService assetBackupService;
+    private final org.jack.wealthflow.service.FullBackupService fullBackupService;
+
+    @GetMapping("/full-backup")
+    public ResponseEntity<ApiResponse<com.fasterxml.jackson.databind.JsonNode>> fullBackup() {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(ApiResponse.success(fullBackupService.export()));
+    }
+
+    @PostMapping("/full-restore")
+    public ResponseEntity<ApiResponse<Boolean>> fullRestore(@RequestBody com.fasterxml.jackson.databind.JsonNode backup) {
+        fullBackupService.restore(backup);
+        return ResponseEntity.ok(ApiResponse.success(true));
+    }
 
     @PostMapping("/restore")
     public ResponseEntity<ApiResponse<AssetBackupRestoreResponse>> restore(

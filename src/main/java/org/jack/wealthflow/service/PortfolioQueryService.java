@@ -89,6 +89,7 @@ public class PortfolioQueryService {
         limitations.add("行业为用户标注的分组，不是已核验的成分穿透；未标注、未登记及混合/宽基产品的科技敞口不能精确确定，不能把未知当作零。");
         limitations.add("同一标的若跨类别或通过基金间接持有，存在重叠风险；没有基金成分数据时不能精确计算重叠敞口。");
         limitations.add("现金类别金额不等于可用闲钱；尚未扣除应急金、债务及近期支出，风险承受能力和投资期限须结合生效策略或询问用户。");
+        limitations.add("本次组合只覆盖用户已登记资产；未登记现金或其他类别不等于实际金额为零，不能据此认定用户没有现金缓冲或只能借款投资。");
         return new PortfolioContext("portfolio-" + UUID.randomUUID().toString().substring(0, 12),
                 OffsetDateTime.now(ZoneOffset.ofHours(8)).toString(), latest == null ? null : latest.getSnapshotDate().toString(), age, total,
                 List.copyOf(groups), sectors, percent(latest == null ? null : registeredAmount, total),
