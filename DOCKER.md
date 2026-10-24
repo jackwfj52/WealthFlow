@@ -1,8 +1,42 @@
 # WealthFlow Docker 部署
 
-## 启动与停止
+## 普通 Windows 用户：只装 Docker Desktop，解压双击
 
-Windows 安装 Docker Desktop，启动后使用 Linux containers 模式。在项目根目录运行：
+支持。普通用户应拿到预构建镜像的启动包，流程为：
+
+1. 安装并启动 Docker Desktop，等待 Linux containers 引擎就绪。
+2. 将 `WealthFlow-windows-amd64-*.zip` 完整解压到固定目录。
+3. 双击 `start.cmd`，等待自动打开 http://127.0.0.1:18000 。
+
+不需要 Git、Java、Node、Python、OpenSSL，不需要在用户电脑上构建。首次由 `docker image load` 从包内 `images.tar` 导入镜像，随后自动生成本机主密钥、启动并等待前后端健康、检查 API、打开网页。后续启动跳过已存在且 ID 匹配的镜像。包内 Compose 不含 `build`，并使用 `--pull never --no-build`，启动应用无需下载镜像；Docker Desktop 自身安装及模型、财经在线功能另需网络。
+
+双击 `stop.cmd` 停止并保留数据。端口、错误处理、密钥保管及更新流程见 [包内使用说明](deploy/BUNDLE-README.md)。当前包面向 Windows，且镜像架构须与 Docker 引擎一致；它不是跨所有系统和架构的安装器。
+
+## 发布者：生成可转发的启动包
+
+在开发电脑的项目根目录运行（Docker Desktop 已启动）：
+
+```powershell
+./deploy/package-release.ps1
+```
+
+默认先构建两个镜像，再生成 `.wealthflow/releases/WealthFlow-windows-架构-版本.zip`。可用 `-OutputDirectory 'D:/发布包'` 指定输出目录。如果已构建好当前要发布的镜像，可加 `-SkipBuild` 直接导出；该选项不检查源码是否比镜像更新，发布者需确认版本。
+
+生成包只包含两个镜像、仅运行用的 Compose、启动/停止脚本、初始化脚本、镜像 ID 与 SHA-256 清单、使用说明。通过明确文件列表组装，**不会复制本机数据库、密钥、完整备份或源码目录**。首次导入时检查镜像归档 SHA-256，导入后校验镜像 ID；每次发布使用独立镜像标签。SHA-256 用于发现传输损坏，不是来源签名。
+
+将原始 ZIP 通过 U 盘、局域网或下载链接交给用户即可，不要转发自己已运行后产生密钥的整个解压目录。此工作流尚未自动上传 GitHub Releases 或公共镜像仓库。以后若需要小体积在线安装包，可另配置公共镜像发布；这不是当前双击包的前置条件。
+
+发布者可在生成的解压目录做独立空库验收（不要在已有用户安装目录测试），使用随机项目名和空闲端口：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./deploy/bundle.ps1 -NoBrowser -ProjectName wealthflow-release-check -Port 18002
+```
+
+该项目的数据卷独立于正式 `wealthflow` 项目。测试完成后停止测试项目，正常用户停止时不要删除卷。
+
+## 开发者：从源码构建与启动
+
+这是旧有的源码构建流程，需要先通过 Git 或源码 ZIP 取得项目。Windows 安装 Docker Desktop，启动后使用 Linux containers 模式。在项目根目录运行：
 
 ```powershell
 ./deploy/init-secrets.ps1

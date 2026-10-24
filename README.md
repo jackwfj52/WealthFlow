@@ -2,7 +2,23 @@
 
 本地个人资产管理应用：资产分类与快照、具体持仓及行业标签、趋势分析、投资知识库、AI 助手。前端为 React / Ant Design，后端为 Java 17 / Spring Boot，数据存储在 SQLite；财经讯息工具使用 Python / AKShare。
 
-## Docker 启动（推荐用于换机与演示）
+## Docker 双击启动（普通用户推荐）
+
+普通用户不需要 Git，也不需要 Java、Node 或 Python：安装并启动 Docker Desktop（Linux containers），将发布者提供的 `WealthFlow-windows-amd64-*.zip` 全部解压，双击 **`start.cmd`**。首次自动导入预构建镜像、初始化密钥并打开 **http://127.0.0.1:18000**；双击 `stop.cmd` 停止，数据保留。
+
+这个 ZIP 必须由发布者先生成；GitHub 的源码 ZIP 不包含预构建镜像，不能代替启动包。镜像随包分发，不需要登录镜像仓库或在用户电脑上编译。模型和财经数据等在线功能仍需要联网。
+
+发布者在项目根目录打包：
+
+```powershell
+./deploy/package-release.ps1
+```
+
+输出位于 `.wealthflow/releases/`，把生成的 ZIP 发给用户即可。包里不含个人数据库或主密钥。打包默认先构建；若当前 `wealthflow-backend:local` 和 `wealthflow-frontend:local` 已构建且确认是要发布的版本，可用 `-SkipBuild` 直接导出。当前按本机 Docker 镜像的 CPU 架构出包，Windows Intel/AMD 电脑通常使用 amd64。
+
+使用、更新和迁移说明见 [Docker 部署说明](DOCKER.md) 和包内的 `README.md`。目前提供本地生成分发包的方式，尚未自动发布到公共镜像仓库或 GitHub Releases。
+
+## Docker 源码构建（开发者）
 
 先安装并启动 Docker Desktop，使用 Linux containers 模式。在项目根目录执行：
 
@@ -16,7 +32,7 @@ docker compose up -d --build --wait
 
 打开 **http://127.0.0.1:18000**。首次启动需要联网下载镜像、Java/npm/Python 依赖；宿主机无需安装 Java、Node 或 Python。后续可用 `docker compose up -d --wait` 启动，更新代码后再加 `--build`。
 
-Linux/macOS 先运行 `sh deploy/init-secrets.sh`（初始化需 OpenSSL），然后使用相同的 Compose 命令。启动、停止、迁移和架构说明见 [Docker 部署说明](DOCKER.md)。
+以上是从源码构建的方式，需要先取得项目源码。可以用 Git，也可以下载源码 ZIP；普通 Windows 用户请使用上面的双击启动包。Linux/macOS 从源码构建时先运行 `sh deploy/init-secrets.sh`（初始化需 OpenSSL），然后使用相同的 Compose 命令。
 
 ```powershell
 docker compose ps             # 查看健康状态
@@ -85,7 +101,7 @@ npm.cmd run dev
 ## 完整备份与换机
 
 1. 旧机器打开“设置 → 完整备份与换机恢复 → 导出完整备份”。备份包括分类、快照、具体持仓、知识文档与版本、文档分块、聊天内容及引用依据、历史操作记录、模型连接配置和当前浏览器界面设置。
-2. 在新机器克隆仓库，安装依赖并运行 `start.ps1`。不要复制 `node_modules` 或 `.venv-finance`。
+2. 在新机器安装 Docker Desktop，解压双击启动包并运行 `start.cmd`；也可采用本文的源码开发方式。不要复制 `node_modules` 或 `.venv-finance`。
 3. 先备份新机器上需要保留的数据，再通过“恢复完整备份”导入。完整恢复为覆盖模式；文件错误或数据库约束失败时整体回滚。恢复期间停止聊天和编辑，并关闭其他页面。
 4. 恢复成功后按提示刷新，在“模型设置”重新填写 API Key。需要语义搜索时，配置并重新启用 Embedding；关键词检索会立即恢复。
 
