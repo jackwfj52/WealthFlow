@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -168,6 +168,32 @@ const Agent: React.FC = () => {
   const [messagePage, setMessagePage] = useState(0);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const messagesViewport = useRef<HTMLDivElement>(null);
+  const messagesContent = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const historyScroll = useRef<{ top: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const viewport = messagesViewport.current;
+    if (!viewport) return;
+    if (historyScroll.current) {
+      viewport.scrollTop = historyScroll.current.top + viewport.scrollHeight - historyScroll.current.height;
+      historyScroll.current = null;
+    } else if (followLatest.current) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+  }, [messages]);
+  useEffect(() => {
+    const viewport = messagesViewport.current;
+    const content = messagesContent.current;
+    if (!viewport || !content) return;
+    // Sources and live progress can change height after the messages render.
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current) viewport.scrollTop = viewport.scrollHeight;
+    });
+    observer.observe(content);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
   const conversationGeneration = useRef(0);
   const streamAbort = useRef<AbortController | null>(null);
   useEffect(() => () => streamAbort.current?.abort(), []);
@@ -200,12 +226,14 @@ const Agent: React.FC = () => {
   const loadConversation = async (id: string) => {
     const generation = ++conversationGeneration.current;
     olderRequest.current = null;
+    historyScroll.current = null;
     setLoadingOlder(false);
     setLoadingConversation(true);
     try {
       const detail = await apiAgentConversations.detail(id);
       if (generation !== conversationGeneration.current) return;
       const saved = detail.messages;
+      followLatest.current = true;
       setMessages(saved.length ? saved.map(toChatMessage) : INITIAL_MESSAGES);
       setMessagePage(0);
       setHasMoreMessages(detail.hasMore);
@@ -316,6 +344,9 @@ const Agent: React.FC = () => {
       const nextPage = messagePage + 1;
       const detail = await apiAgentConversations.detail(activeConversationId, nextPage);
       if (generation !== conversationGeneration.current || olderRequest.current !== request) return;
+      const viewport = messagesViewport.current;
+      if (viewport) historyScroll.current = { top: viewport.scrollTop, height: viewport.scrollHeight };
+      followLatest.current = false;
       setMessages(previous => {
         const ids = new Set(previous.map(item => item.id));
         return [...detail.messages.filter(item => !ids.has(item.id)).map(toChatMessage), ...previous];
@@ -390,6 +421,7 @@ const Agent: React.FC = () => {
     };
     const placeholderId = Date.now() + 1;
 
+    followLatest.current = true;
     setMessages((previous) => [
       ...previous,
       userMessage,
@@ -661,7 +693,12 @@ const Agent: React.FC = () => {
             />
 
             <div
+              ref={messagesViewport}
               className="agent-chat-messages"
+              onScroll={(event) => {
+                const viewport = event.currentTarget;
+                followLatest.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 48;
+              }}
               style={{
                 '--chat-scrollbar-thumb': hexToRgba(token.colorPrimary, 0.45),
                 '--chat-scrollbar-thumb-hover': token.colorPrimary,
@@ -671,6 +708,7 @@ const Agent: React.FC = () => {
                 background: token.colorBgLayout,
               } as React.CSSProperties}
             >
+              <div ref={messagesContent}>
               {hasMoreMessages && <Button block size="small" onClick={loadOlder}
                 loading={loadingOlder} disabled={loadingConversation || sending}>加载更早消息</Button>}
               <List
@@ -719,6 +757,7 @@ const Agent: React.FC = () => {
                   );
                 }}
               />
+              </div>
             </div>
 
             <Divider style={{ margin: 0 }} />

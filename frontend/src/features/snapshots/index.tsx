@@ -30,6 +30,7 @@ import {
   Modal,
   Spin,
   Upload,
+  Grid,
 } from 'antd';
 import {
   PlusOutlined,
@@ -80,6 +81,7 @@ const Snapshots: React.FC = () => {
   const { snapshots, loading, refresh: refreshSnapshots } = useSnapshots();
   const { categories, refresh: refreshCategories } = useCategories();
   const { settings } = useSettings();
+  const screens = Grid.useBreakpoint();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add');
@@ -543,7 +545,7 @@ const Snapshots: React.FC = () => {
       dataIndex: 'snapshotDate',
       key: 'snapshotDate',
       width: 140,
-      fixed: 'left',
+      fixed: screens.md ? 'left' : undefined,
       sorter: (a, b) => a.snapshotDate.localeCompare(b.snapshotDate),
       render: (v: string) => <Tag color="blue">{v}</Tag>,
     },
@@ -605,7 +607,7 @@ const Snapshots: React.FC = () => {
       title: '操作',
       key: 'actions',
       width: 180,
-      fixed: 'right',
+      fixed: screens.md ? 'right' : undefined,
       render: (_, record) => (
         <Space>
           <Button
@@ -656,7 +658,7 @@ const Snapshots: React.FC = () => {
       title: '快照日期',
       key: 'date',
       width: 150,
-      fixed: 'left',
+      fixed: screens.md ? 'left' : undefined,
       render: (_, row) => (
         <DatePicker
           style={{ width: '100%' }}
@@ -687,7 +689,7 @@ const Snapshots: React.FC = () => {
       title: '操作',
       key: 'actions',
       width: 80,
-      fixed: 'right',
+      fixed: screens.md ? 'right' : undefined,
       render: (_, row) => (
         <Button
           type="text"
@@ -712,7 +714,7 @@ const Snapshots: React.FC = () => {
         title="资产快照"
         subtitle="每日资产更新按新增快照处理，不会覆盖历史数据"
         extra={
-          <Space>
+          <Space wrap>
             <Button icon={<DownloadOutlined />} onClick={openImport}>
               导入 JSON
             </Button>
@@ -801,6 +803,7 @@ const Snapshots: React.FC = () => {
           columns={columns}
           rowKey="id"
           scroll={{ x: 'max-content' }}
+          sticky={{ offsetScroll: 0 }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys as string[]),
