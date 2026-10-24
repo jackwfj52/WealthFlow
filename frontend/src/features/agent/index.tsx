@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -149,6 +149,9 @@ const Agent: React.FC = () => {
   const [loadingConversation, setLoadingConversation] = useState(true);
   const [messagePage, setMessagePage] = useState(0);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const conversationGeneration = useRef(0);
+  const olderRequest = useRef<symbol | null>(null);
   const [form] = Form.useForm<DraftEntryFormValues>();
 
   const [providers, setProviders] = useState<AiProviderConfig[]>([]);
@@ -175,9 +178,13 @@ const Agent: React.FC = () => {
   };
 
   const loadConversation = async (id: string) => {
+    const generation = ++conversationGeneration.current;
+    olderRequest.current = null;
+    setLoadingOlder(false);
     setLoadingConversation(true);
     try {
       const detail = await apiAgentConversations.detail(id);
+      if (generation !== conversationGeneration.current) return;
       const saved = detail.messages;
       setMessages(saved.length ? saved.map(toChatMessage) : INITIAL_MESSAGES);
       setMessagePage(0);
@@ -197,19 +204,22 @@ const Agent: React.FC = () => {
       if (restored) {
         try {
           const { status } = await apiAgentConversations.actionStatus(id, restored.data.actionId);
+          if (generation !== conversationGeneration.current) return;
           setDraft({ ...restored, data: { ...restored.data, status } } as PendingDraft);
           if (status === 'EXECUTED') setExecution({
             actionId: restored.data.actionId, actionType: restored.data.actionType,
             status, displaySummary: restored.data.displaySummary, snapshot: null,
           });
         } catch {
+          if (generation !== conversationGeneration.current) return;
           setDraft({ ...restored, data: { ...restored.data, status: 'EXPIRED' } } as PendingDraft);
         }
       } else if (response?.execution) setExecution(response.execution);
     } catch (err) {
-      message.error(err instanceof Error ? err.message : '读取会话失败');
+      if (generation === conversationGeneration.current)
+        message.error(err instanceof Error ? err.message : '读取会话失败');
     } finally {
-      setLoadingConversation(false);
+      if (generation === conversationGeneration.current) setLoadingConversation(false);
     }
   };
 
@@ -242,7 +252,11 @@ const Agent: React.FC = () => {
     }).catch(err => {
       if (active) { setLoadingConversation(false); message.error(err instanceof Error ? err.message : '读取会话失败'); }
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      conversationGeneration.current += 1;
+      olderRequest.current = null;
+    };
   }, []);
 
   const refreshConversations = async () => setConversations(await apiAgentConversations.list());
@@ -273,14 +287,30 @@ const Agent: React.FC = () => {
     });
   };
   const loadOlder = async () => {
-    if (!activeConversationId || !hasMoreMessages) return;
+    if (!activeConversationId || !hasMoreMessages || loadingConversation || olderRequest.current) return;
+    const generation = conversationGeneration.current;
+    const request = Symbol();
+    olderRequest.current = request;
+    setLoadingOlder(true);
     try {
       const nextPage = messagePage + 1;
       const detail = await apiAgentConversations.detail(activeConversationId, nextPage);
-      setMessages(previous => [...detail.messages.map(toChatMessage), ...previous]);
+      if (generation !== conversationGeneration.current || olderRequest.current !== request) return;
+      setMessages(previous => {
+        const ids = new Set(previous.map(item => item.id));
+        return [...detail.messages.filter(item => !ids.has(item.id)).map(toChatMessage), ...previous];
+      });
       setMessagePage(nextPage);
       setHasMoreMessages(detail.hasMore);
-    } catch (err) { message.error(err instanceof Error ? err.message : '读取消息失败'); }
+    } catch (err) {
+      if (generation === conversationGeneration.current)
+        message.error(err instanceof Error ? err.message : '读取消息失败');
+    } finally {
+      if (olderRequest.current === request) {
+        olderRequest.current = null;
+        setLoadingOlder(false);
+      }
+    }
   };
 
   useEffect(() => {
@@ -602,7 +632,8 @@ const Agent: React.FC = () => {
                 background: token.colorBgLayout,
               }}
             >
-              {hasMoreMessages && <Button block size="small" onClick={loadOlder}>加载更早消息</Button>}
+              {hasMoreMessages && <Button block size="small" onClick={loadOlder}
+                loading={loadingOlder} disabled={loadingConversation || sending}>加载更早消息</Button>}
               <List
                 split={false}
                 dataSource={messages}

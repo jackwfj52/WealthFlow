@@ -4,11 +4,16 @@ import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.dto.ApiResponse;
 import org.jack.wealthflow.dto.SystemInfoResponse;
 import org.jack.wealthflow.service.SystemService;
+import org.jack.wealthflow.service.AssetBackupService;
+import org.jack.wealthflow.dto.AssetBackupRestoreRequest;
+import org.jack.wealthflow.dto.AssetBackupRestoreResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 @RestController
 @RequiredArgsConstructor
@@ -16,6 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemController {
 
     private final SystemService systemService;
+    private final AssetBackupService assetBackupService;
+
+    @PostMapping("/restore")
+    public ResponseEntity<ApiResponse<AssetBackupRestoreResponse>> restore(
+            @RequestBody AssetBackupRestoreRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(assetBackupService.restore(request)));
+    }
 
     @GetMapping("/info")
     public ResponseEntity<ApiResponse<SystemInfoResponse>> info() {

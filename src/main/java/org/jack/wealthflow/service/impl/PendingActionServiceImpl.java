@@ -220,8 +220,8 @@ public class PendingActionServiceImpl implements PendingActionService {
 
         if (rows != 1) {
             throw new BusinessException(
-                    ErrorCode.SERVER_ERROR,
-                    MessageConstant.PENDING_ACTION_STATUS_UPDATE_FAILED
+                    ErrorCode.PENDING_ACTION_NOT_PENDING,
+                    MessageConstant.PENDING_ACTION_NOT_PENDING
             );
         }
     }

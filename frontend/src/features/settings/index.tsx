@@ -142,8 +142,6 @@ const Settings: React.FC = () => {
       const report = await runBackupRestore(
         restorePending.backup,
         restoreMode,
-        categoryService,
-        snapshotService,
         systemService
       );
       refreshCategories();

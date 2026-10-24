@@ -28,6 +28,7 @@ public interface PendingActionMapper {
             @Param("executedAt") String executedAt
     );
 
+    /** 仅从PENDING转为取消或过期，不能覆盖已经领取或执行的操作。 */
     int updateStatus(
             @Param("id") String id,
             @Param("status") PendingActionStatus status,

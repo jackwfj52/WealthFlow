@@ -10,6 +10,7 @@ import org.jack.wealthflow.dto.CreateSnapshotDraftResponse;
 import org.jack.wealthflow.dto.DeleteSnapshotDraftItem;
 import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
 import org.jack.wealthflow.dto.DeleteSnapshotDraftResponse;
+import org.jack.wealthflow.dto.DeleteSnapshotPayload;
 import org.jack.wealthflow.dto.SnapshotItem;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
@@ -83,10 +84,17 @@ public class SnapshotDraftServiceImpl implements SnapshotDraftService {
     ) {
         List<LocalDate> dates = validateDeleteDates(request);
 
-        List<DeleteSnapshotDraftItem> items = buildDeleteItems(dates);
-
-        DeleteSnapshotDraftRequest payload =
-                new DeleteSnapshotDraftRequest(dates);
+        Map<LocalDate, AssetSnapshotResponse> current = assetSnapshotService.findAll().stream()
+                .collect(Collectors.toMap(AssetSnapshotResponse::getSnapshotDate, snapshot -> snapshot));
+        List<DeleteSnapshotPayload.ExpectedSnapshot> expected = dates.stream().map(date -> {
+            AssetSnapshotResponse snapshot = current.get(date);
+            if (snapshot == null) throw new BusinessException(ErrorCode.SNAPSHOT_NOT_FOUND,
+                    MessageConstant.SNAPSHOT_DELETE_DATE_NOT_FOUND);
+            return new DeleteSnapshotPayload.ExpectedSnapshot(date, snapshot.getId(), snapshot.getItems());
+        }).toList();
+        List<DeleteSnapshotDraftItem> items = dates.stream()
+                .map(date -> new DeleteSnapshotDraftItem(date.toString(), current.get(date).getTotalAmount())).toList();
+        DeleteSnapshotPayload payload = new DeleteSnapshotPayload(expected);
 
         PendingAction pendingAction = pendingActionService.create(
                 PendingActionType.DELETE_SNAPSHOT,
@@ -167,34 +175,6 @@ public class SnapshotDraftServiceImpl implements SnapshotDraftService {
         return dates;
     }
 
-    private List<DeleteSnapshotDraftItem> buildDeleteItems(
-            List<LocalDate> dates
-    ) {
-        Map<LocalDate, AssetSnapshotResponse> snapshotsByDate =
-                assetSnapshotService.findAll().stream()
-                        .collect(Collectors.toMap(
-                                AssetSnapshotResponse::getSnapshotDate,
-                                snapshot -> snapshot
-                        ));
-
-        return dates.stream()
-                .map(date -> {
-                    AssetSnapshotResponse existing =
-                            snapshotsByDate.get(date);
-                    if (existing == null) {
-                        throw new BusinessException(
-                                ErrorCode.SNAPSHOT_NOT_FOUND,
-                                MessageConstant.SNAPSHOT_DELETE_DATE_NOT_FOUND
-                        );
-                    }
-                    return new DeleteSnapshotDraftItem(
-                            date.toString(),
-                            existing.getTotalAmount()
-                    );
-                })
-                .toList();
-    }
-
     private String buildDeleteDisplaySummary(
             List<DeleteSnapshotDraftItem> items
     ) {
@@ -210,7 +190,7 @@ public class SnapshotDraftServiceImpl implements SnapshotDraftService {
                 + " 天的资产快照，删除后不可恢复";
     }
 
-    private String toDeletePayloadJson(DeleteSnapshotDraftRequest payload) {
+    private String toDeletePayloadJson(DeleteSnapshotPayload payload) {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {

@@ -144,6 +144,10 @@ export function parseImportJson(text: string): ParseResult {
         invalidReason = '分类名称为空';
         break;
       }
+      if (name.length > 20) {
+        invalidReason = '分类名称不超过20个字符';
+        break;
+      }
       if (seenNames.has(name)) {
         invalidReason = `分类"${name}"重复`;
         break;
@@ -295,7 +299,7 @@ export function buildBackupJson(
   return JSON.stringify(backup, null, 2);
 }
 
-/** 解析备份文件：结构问题直接报错，快照条目级问题跳过并记录原因 */
+/** 恢复备份要求全部有效，拒绝不完整备份，避免覆盖时静默丢失无效条目。 */
 export function parseBackupJson(text: string): BackupParseResult {
   let raw: unknown;
   try {
@@ -312,6 +316,9 @@ export function parseBackupJson(text: string): BackupParseResult {
   if (typeof e.type === 'string' && e.type !== 'wealthflow-backup') {
     return { ok: false, error: '不是有效的 WealthFlow 备份文件' };
   }
+  if (e.version !== undefined && e.version !== 1) {
+    return { ok: false, error: '不支持的资产备份版本' };
+  }
   if (e.categories !== undefined && !Array.isArray(e.categories)) {
     return { ok: false, error: '备份文件 categories 字段应为数组' };
   }
@@ -325,8 +332,15 @@ export function parseBackupJson(text: string): BackupParseResult {
     const name =
       typeof entry === 'string'
         ? entry.trim()
-        : String(obj?.name ?? '').trim();
+        : typeof obj?.name === 'string' ? obj.name.trim() : '';
+    if (!name || name.length > 20) {
+      return { ok: false, error: '备份分类名称不能为空且不超过20个字符' };
+    }
     const rawColor = obj?.color;
+    if (rawColor != null && (typeof rawColor !== 'string'
+        || (rawColor.trim() !== '' && !isValidHexColor(rawColor.trim())))) {
+      return { ok: false, error: `分类“${name}”的颜色格式无效` };
+    }
     const color =
       typeof rawColor === 'string' && isValidHexColor(rawColor.trim())
         ? rawColor.trim().toLowerCase()
@@ -345,6 +359,9 @@ export function parseBackupJson(text: string): BackupParseResult {
       return { ok: false, error: `快照数据无效：${parsed.error}` };
     }
     report = parsed.report;
+    if (report.skipped.length) {
+      return { ok: false, error: `备份含无效快照，未执行恢复：${report.skipped[0].reason}` };
+    }
   }
 
   const backup: BackupFile = {
@@ -361,68 +378,16 @@ export function parseBackupJson(text: string): BackupParseResult {
 /**
  * 执行备份恢复。
  * - merge：保留现有数据，已存在的快照日期跳过
- * - overwrite：先清空全部数据，再导入备份
+ * - overwrite：由后端在同一事务内清空并恢复，任何失败整体回滚
  * 分类按名称匹配，不存在则自动创建。
  */
 export async function runBackupRestore(
   backup: BackupFile,
   mode: RestoreMode,
-  categoryService: CategoryService,
-  snapshotService: SnapshotService,
   systemService: SystemService
 ): Promise<BackupRestoreReport> {
-  if (mode === 'overwrite') {
-    await systemService.clearAll();
-  }
-
-  const report: BackupRestoreReport = {
-    createdSnapshots: 0,
-    createdCategories: 0,
-    skipped: [],
-  };
-
-  const categories = await categoryService.getAll();
-  const nameToId = new Map(categories.map((c) => [c.name, c.id]));
-
-  for (const cat of backup.categories) {
-    if (!nameToId.has(cat.name)) {
-      const created = await categoryService.create(cat.name, cat.color);
-      nameToId.set(cat.name, created.id);
-      report.createdCategories += 1;
-    }
-  }
-
-  for (const entry of backup.snapshots) {
-    if (await snapshotService.existsByDate(entry.snapshotDate)) {
-      report.skipped.push({
-        date: entry.snapshotDate,
-        reason:
-          mode === 'merge'
-            ? '数据库中已存在该日期的快照（合并模式不覆盖）'
-            : '数据库中已存在该日期的快照',
-      });
-      continue;
-    }
-
-    const items: SnapshotItem[] = [];
-    for (const item of entry.items) {
-      let categoryId = nameToId.get(item.categoryName);
-      if (!categoryId) {
-        const created = await categoryService.create(item.categoryName);
-        categoryId = created.id;
-        nameToId.set(item.categoryName, categoryId);
-        report.createdCategories += 1;
-      }
-      items.push({
-        categoryId,
-        categoryName: item.categoryName,
-        amount: item.amount,
-      });
-    }
-
-    await snapshotService.create(entry.snapshotDate, items);
-    report.createdSnapshots += 1;
-  }
-
-  return report;
+  const validated = parseBackupJson(JSON.stringify(backup));
+  if (!validated.ok) throw new Error(validated.error);
+  return systemService.restoreBackup({ mode, categories: validated.backup.categories,
+    snapshots: validated.backup.snapshots });
 }

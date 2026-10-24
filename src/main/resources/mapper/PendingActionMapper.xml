@@ -69,6 +69,7 @@
         executed_at = #{executedAt},
         failure_message = #{failureMessage}
         WHERE id = #{id}
+          AND status = 'PENDING'
     </update>
 
 </mapper>

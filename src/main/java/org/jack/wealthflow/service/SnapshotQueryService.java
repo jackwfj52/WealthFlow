@@ -17,6 +17,10 @@ public class SnapshotQueryService {
     private final AssetSnapshotService snapshots;
 
     public List<AssetSnapshotResponse> select(JsonNode args) {
+        return select(args, false);
+    }
+
+    private List<AssetSnapshotResponse> select(JsonNode args, boolean includeMissingCategory) {
         onlyFields(args, "startDate", "endDate", "snapshotDates", "categoryName", "minAmount", "maxAmount", "offset", "limit");
         LocalDate start = args.hasNonNull("startDate") ? date(args, "startDate") : LocalDate.MIN;
         LocalDate end = args.hasNonNull("endDate") ? date(args, "endDate") : LocalDate.now();
@@ -39,7 +43,8 @@ public class SnapshotQueryService {
         return snapshots.findAll().stream()
                 .filter(s -> !s.getSnapshotDate().isBefore(start) && !s.getSnapshotDate().isAfter(end))
                 .filter(s -> dates.isEmpty() || dates.contains(s.getSnapshotDate()))
-                .filter(s -> category == null || s.getItems().stream().anyMatch(i -> category.equals(i.getCategoryName())))
+                .filter(s -> includeMissingCategory || category == null
+                        || s.getItems().stream().anyMatch(i -> category.equals(i.getCategoryName())))
                 .filter(s -> min == null || amount(s, category).compareTo(min) >= 0)
                 .filter(s -> max == null || amount(s, category).compareTo(max) <= 0)
                 .sorted(Comparator.comparing(AssetSnapshotResponse::getSnapshotDate)).toList();
@@ -51,7 +56,8 @@ public class SnapshotQueryService {
     }
 
     public Map<String, Object> query(JsonNode args) {
-        var selected = select(args);
+        // 查询将缺失分类视为0；批量操作的select仍仅选择实际包含该分类的日期。
+        var selected = select(args, true);
         String category = args.hasNonNull("categoryName") ? text(args, "categoryName") : null;
         int offset = integer(args, "offset", 0, 0, Integer.MAX_VALUE);
         int limit = integer(args, "limit", 30, 1, 100);
@@ -70,10 +76,12 @@ public class SnapshotQueryService {
         for (var s : selected) {
             BigDecimal value = amount(s, category);
             peak = peak.max(value);
-            drawdown = drawdown.max(peak.subtract(value).divide(peak, 8, RoundingMode.HALF_UP));
+            if (peak.signum() > 0)
+                drawdown = drawdown.max(peak.subtract(value).divide(peak, 8, RoundingMode.HALF_UP));
         }
         var changes = new ArrayList<Map<String, Object>>();
         Set<String> names = new TreeSet<>();
+        if (category != null) names.add(category);
         first.getItems().forEach(i -> names.add(i.getCategoryName()));
         last.getItems().forEach(i -> names.add(i.getCategoryName()));
         for (String name : names) {
@@ -83,13 +91,14 @@ public class SnapshotQueryService {
                     "change", to.subtract(from).toPlainString()));
         }
         var values = selected.stream().map(s -> amount(s, category)).toList();
-        result.put("statistics", Map.of("firstDate", first.getSnapshotDate(), "lastDate", last.getSnapshotDate(),
+        Map<String, Object> statistics = new LinkedHashMap<>(Map.of("firstDate", first.getSnapshotDate(), "lastDate", last.getSnapshotDate(),
                 "startAmount", initial.toPlainString(), "endAmount", latest.toPlainString(),
                 "change", latest.subtract(initial).toPlainString(),
-                "changePercent", latest.subtract(initial).multiply(BigDecimal.valueOf(100)).divide(initial, 4, RoundingMode.HALF_UP).toPlainString(),
                 "minAmount", Collections.min(values).toPlainString(), "maxAmount", Collections.max(values).toPlainString(),
                 "maxSnapshotDrawdownPercent", drawdown.multiply(BigDecimal.valueOf(100)).toPlainString(),
                 "categoryChanges", changes));
+        statistics.put("changePercent", percentageChange(initial, latest));
+        result.put("statistics", statistics);
         result.put("averageAmount", values.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
                 .divide(BigDecimal.valueOf(values.size()), 2, RoundingMode.HALF_UP).toPlainString());
         result.put("latestAllocation", last.getItems().stream().map(i -> Map.of(
@@ -99,18 +108,27 @@ public class SnapshotQueryService {
             List<Map<String, Object>> movements = new ArrayList<>();
             for (int i = 1; i < selected.size(); i++) {
                 BigDecimal previous = values.get(i - 1), next = values.get(i);
-                movements.add(Map.of("fromDate", selected.get(i - 1).getSnapshotDate(),
+                Map<String, Object> movement = new LinkedHashMap<>(Map.of("fromDate", selected.get(i - 1).getSnapshotDate(),
                         "toDate", selected.get(i).getSnapshotDate(),
                         "gapDays", java.time.temporal.ChronoUnit.DAYS.between(selected.get(i - 1).getSnapshotDate(), selected.get(i).getSnapshotDate()),
-                        "change", next.subtract(previous).toPlainString(),
-                        "changePercent", next.subtract(previous).multiply(BigDecimal.valueOf(100)).divide(previous, 4, RoundingMode.HALF_UP).toPlainString()));
+                        "change", next.subtract(previous).toPlainString()));
+                movement.put("changePercent", percentageChange(previous, next));
+                movements.add(movement);
             }
             Comparator<Map<String, Object>> byPercent = Comparator.comparing(m -> new BigDecimal((String) m.get("changePercent")));
-            result.put("largestObservedRise", Collections.max(movements, byPercent));
-            result.put("largestObservedFall", Collections.min(movements, byPercent));
+            var measurable = movements.stream().filter(m -> m.get("changePercent") != null).toList();
+            if (!measurable.isEmpty()) {
+                result.put("largestObservedRise", Collections.max(measurable, byPercent));
+                result.put("largestObservedFall", Collections.min(measurable, byPercent));
+            }
         }
-        result.put("limitation", "统计针对全部匹配快照，records仅为当前页；日期不连续时不代表每日变化。资产金额变化及快照回撤不是投资收益或策略回测，无法排除入金、出金影响。");
+        result.put("limitation", "统计针对全部匹配快照，records仅为当前页；缺失分类按0计算，基数为0时变化率为null（无法计算）。日期不连续时不代表每日变化。资产金额变化及快照回撤不是投资收益或策略回测，无法排除入金、出金影响。");
         return result;
+    }
+
+    private String percentageChange(BigDecimal previous, BigDecimal current) {
+        return previous.signum() == 0 ? null : current.subtract(previous).multiply(BigDecimal.valueOf(100))
+                .divide(previous, 4, RoundingMode.HALF_UP).toPlainString();
     }
 
     private int integer(JsonNode args, String field, int fallback, int min, int max) {

@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.jack.wealthflow.dto.AssetSnapshotResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
-import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
+import org.jack.wealthflow.dto.DeleteSnapshotPayload;
+import org.jack.wealthflow.dto.SnapshotItem;
 import org.jack.wealthflow.dto.PendingActionExecutionResponse;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
@@ -186,16 +187,26 @@ class SnapshotActionExecutionServiceTest {
         return pendingAction;
     }
 
+    private String deletePayload(List<LocalDate> dates) throws Exception {
+        List<AssetSnapshotResponse> current = dates.stream().map(date -> {
+            AssetSnapshotResponse snapshot = new AssetSnapshotResponse();
+            snapshot.setId(date.toEpochDay()); snapshot.setSnapshotDate(date);
+            SnapshotItem item = new SnapshotItem();
+            item.setCategoryId(1L); item.setCategoryName("现金"); item.setAmount(BigDecimal.TEN);
+            snapshot.setItems(List.of(item)); snapshot.setTotalAmount(BigDecimal.TEN);
+            return snapshot;
+        }).toList();
+        when(assetSnapshotService.findAll()).thenReturn(current);
+        return objectMapper.writeValueAsString(new DeleteSnapshotPayload(current.stream().map(snapshot ->
+                new DeleteSnapshotPayload.ExpectedSnapshot(snapshot.getSnapshotDate(), snapshot.getId(), snapshot.getItems())).toList()));
+    }
+
     @Test
     void shouldExecuteDeleteSnapshotsAndMarkExecuted() throws Exception {
         LocalDate firstDate = LocalDate.of(2026, 8, 1);
         LocalDate secondDate = LocalDate.of(2026, 8, 2);
 
-        String payloadJson = objectMapper.writeValueAsString(
-                new DeleteSnapshotDraftRequest(
-                        List.of(firstDate, secondDate)
-                )
-        );
+        String payloadJson = deletePayload(List.of(firstDate, secondDate));
 
         PendingAction claimed = deletePendingAction(payloadJson);
         claimed.setStatus(PendingActionStatus.EXECUTING);
@@ -274,9 +285,7 @@ class SnapshotActionExecutionServiceTest {
     void shouldNotMarkExecutedWhenDeleteFails() throws Exception {
         LocalDate firstDate = LocalDate.of(2026, 8, 1);
 
-        String payloadJson = objectMapper.writeValueAsString(
-                new DeleteSnapshotDraftRequest(List.of(firstDate))
-        );
+        String payloadJson = deletePayload(List.of(firstDate));
 
         doThrow(new BusinessException(
                 ErrorCode.SNAPSHOT_NOT_FOUND,

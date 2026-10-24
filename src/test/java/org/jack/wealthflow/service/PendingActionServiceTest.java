@@ -136,6 +136,18 @@ class PendingActionServiceTest {
     }
 
     @Test
+    void shouldRejectCancellationWhenConfirmationWinsAfterRead() {
+        PendingAction stale = new PendingAction();
+        stale.setId("race"); stale.setStatus(PendingActionStatus.PENDING);
+        stale.setExpiresAt(LocalDateTime.now().plusMinutes(10).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        when(pendingActionMapper.findById("race")).thenReturn(stale);
+        // 原子更新返回0，表示读取后另一个请求已领取或完成，不能返回取消成功。
+        when(pendingActionMapper.updateStatus("race", PendingActionStatus.CANCELLED, null, null)).thenReturn(0);
+        var error = assertThrows(BusinessException.class, () -> pendingActionService.cancel("race"));
+        assertEquals(ErrorCode.PENDING_ACTION_NOT_PENDING, error.getErrorCode());
+    }
+
+    @Test
     void shouldRejectActionAlreadyClaimedByAnotherRequest() {
         PendingAction executing = new PendingAction();
         executing.setId("action-race");

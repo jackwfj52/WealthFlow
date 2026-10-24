@@ -49,4 +49,18 @@ export interface SystemService {
   getInfo(): Promise<SystemInfo>;
   /** 清空全部数据（分类 + 快照），不可恢复 */
   clearAll(): Promise<void>;
+  /** 单次事务恢复资产备份，失败时保留原数据。 */
+  restoreBackup(request: AssetBackupRestoreRequest): Promise<AssetBackupRestoreReport>;
+}
+
+export interface AssetBackupRestoreRequest {
+  mode: 'merge' | 'overwrite';
+  categories: { name: string; color?: string }[];
+  snapshots: { snapshotDate: string; items: { categoryName: string; amount: string }[] }[];
+}
+
+export interface AssetBackupRestoreReport {
+  createdSnapshots: number;
+  createdCategories: number;
+  skipped: { date: string; reason: string }[];
 }

@@ -151,6 +151,9 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
         }
 
         String name = normalizeName(category.getName());
+        if (name != null && name.length() > 20) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, MessageConstant.NAME_NOT_TOO_LONG);
+        }
         // 验证名称是否为空
         if (name == null || name.isBlank()) {
             throw new BusinessException(

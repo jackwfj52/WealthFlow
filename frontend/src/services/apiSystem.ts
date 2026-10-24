@@ -2,7 +2,7 @@
  * 系统信息 API Service（Spring Boot 后端）
  */
 import { apiClient } from './apiClient';
-import type { SystemInfo, SystemService } from './types';
+import type { AssetBackupRestoreRequest, AssetBackupRestoreReport, SystemInfo, SystemService } from './types';
 
 export const apiSystemService: SystemService = {
   getInfo(): Promise<SystemInfo> {
@@ -11,5 +11,8 @@ export const apiSystemService: SystemService = {
 
   clearAll(): Promise<void> {
     return apiClient.delete('/system/all-data');
+  },
+  restoreBackup(request: AssetBackupRestoreRequest): Promise<AssetBackupRestoreReport> {
+    return apiClient.post('/system/restore', request);
   },
 };

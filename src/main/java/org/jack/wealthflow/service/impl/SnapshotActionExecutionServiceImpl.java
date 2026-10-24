@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.dto.AssetSnapshotResponse;
 import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
-import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
+import org.jack.wealthflow.dto.DeleteSnapshotPayload;
 import org.jack.wealthflow.dto.PendingActionExecutionResponse;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
@@ -19,8 +19,9 @@ import org.jack.wealthflow.service.SnapshotActionExecutionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -79,6 +80,11 @@ public class SnapshotActionExecutionServiceImpl implements SnapshotActionExecuti
         }
     }
 
+    private BusinessException invalidDeleteDraft() {
+        return new BusinessException(ErrorCode.SNAPSHOT_DRAFT_PARSE_FAILED,
+                "删除草案缺少有效的原始数据，请取消后重新生成草案");
+    }
+
     /**
      * 在单个事务内逐日删除快照并标记状态：
      * 任一日删除失败或状态更新失败，整体回滚。
@@ -92,10 +98,24 @@ public class SnapshotActionExecutionServiceImpl implements SnapshotActionExecuti
                 pendingAction.getId()
         );
 
-        DeleteSnapshotDraftRequest request = parseDeletePayload(claimed);
-
-        for (LocalDate snapshotDate : request.snapshotDates()) {
-            assetSnapshotService.deleteBySnapshotDate(snapshotDate);
+        DeleteSnapshotPayload request = parseDeletePayload(claimed);
+        var current = assetSnapshotService.findAll().stream()
+                .collect(Collectors.toMap(AssetSnapshotResponse::getSnapshotDate, snapshot -> snapshot));
+        // 先核对全部日期，再执行删除；事务内任何失败均回滚。
+        for (var expected : request.snapshots()) {
+            var actual = current.get(expected.snapshotDate());
+            if (actual == null || !Objects.equals(actual.getId(), expected.id())
+                    || actual.getItems().size() != expected.items().size()
+                    || expected.items().stream().anyMatch(item -> actual.getItems().stream().noneMatch(value ->
+                    Objects.equals(value.getCategoryId(), item.getCategoryId())
+                            && Objects.equals(value.getCategoryName(), item.getCategoryName())
+                            && value.getAmount().compareTo(item.getAmount()) == 0))) {
+                throw new BusinessException(ErrorCode.PARAM_INVALID,
+                        expected.snapshotDate() + " 的数据已变化，请重新生成删除草案");
+            }
+        }
+        for (var expected : request.snapshots()) {
+            assetSnapshotService.deleteBySnapshotDate(expected.snapshotDate());
         }
 
         PendingAction executed =
@@ -110,24 +130,29 @@ public class SnapshotActionExecutionServiceImpl implements SnapshotActionExecuti
         );
     }
 
-    private DeleteSnapshotDraftRequest parseDeletePayload(
+    private DeleteSnapshotPayload parseDeletePayload(
             PendingAction pendingAction
     ) {
         try {
-            DeleteSnapshotDraftRequest request = objectMapper.readValue(
+            // 无原值的历史草案不能安全确认，要求重新生成。
+            DeleteSnapshotPayload request = objectMapper.readValue(
                     pendingAction.getPayloadJson(),
-                    DeleteSnapshotDraftRequest.class
+                    DeleteSnapshotPayload.class
             );
 
             if (request == null
-                    || request.snapshotDates() == null
-                    || request.snapshotDates().isEmpty()) {
-                throw parseFailed();
+                    || request.snapshots() == null || request.snapshots().isEmpty()
+                    || request.snapshots().stream().anyMatch(snapshot -> snapshot == null
+                    || snapshot.snapshotDate() == null || snapshot.id() == null
+                    || snapshot.items() == null || snapshot.items().isEmpty()
+                    || snapshot.items().stream().anyMatch(item -> item == null
+                    || item.getCategoryId() == null || item.getAmount() == null))) {
+                throw invalidDeleteDraft();
             }
 
             return request;
         } catch (JsonProcessingException exception) {
-            throw parseFailed();
+            throw invalidDeleteDraft();
         }
     }
 

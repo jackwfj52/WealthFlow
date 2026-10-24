@@ -8,6 +8,7 @@ import org.jack.wealthflow.dto.CreateSnapshotDraftRequest;
 import org.jack.wealthflow.dto.CreateSnapshotDraftResponse;
 import org.jack.wealthflow.dto.DeleteSnapshotDraftRequest;
 import org.jack.wealthflow.dto.DeleteSnapshotDraftResponse;
+import org.jack.wealthflow.dto.DeleteSnapshotPayload;
 import org.jack.wealthflow.dto.SnapshotItem;
 import org.jack.wealthflow.dto.SnapshotItemRequest;
 import org.jack.wealthflow.exception.BusinessException;
@@ -138,8 +139,12 @@ class SnapshotDraftServiceTest {
             BigDecimal total
     ) {
         AssetSnapshotResponse response = new AssetSnapshotResponse();
+        response.setId(date.toEpochDay());
         response.setSnapshotDate(date);
         response.setTotalAmount(total);
+        SnapshotItem item = new SnapshotItem();
+        item.setCategoryId(1L); item.setCategoryName("现金"); item.setAmount(total);
+        response.setItems(List.of(item));
         return response;
     }
 
@@ -161,10 +166,10 @@ class SnapshotDraftServiceTest {
         assertEquals(end.toString(), draft.items().get(31).snapshotDate());
         var payload = ArgumentCaptor.forClass(String.class);
         verify(pendingActionService).create(eq(PendingActionType.DELETE_SNAPSHOT), payload.capture(), anyString());
-        var saved = objectMapper.readValue(payload.getValue(), DeleteSnapshotDraftRequest.class);
-        assertEquals(32, saved.snapshotDates().size());
-        org.junit.jupiter.api.Assertions.assertNull(saved.startDate());
-        org.junit.jupiter.api.Assertions.assertNull(saved.endDate());
+        var saved = objectMapper.readValue(payload.getValue(), DeleteSnapshotPayload.class);
+        assertEquals(32, saved.snapshots().size());
+        assertEquals(start, saved.snapshots().get(0).snapshotDate());
+        assertEquals(end, saved.snapshots().get(31).snapshotDate());
         verify(assetSnapshotService, never()).deleteBySnapshotDate(any());
     }
 
@@ -240,14 +245,14 @@ class SnapshotDraftServiceTest {
 
         JsonNode payload = objectMapper.readTree(payloadCaptor.getValue());
 
-        assertEquals(2, payload.get("snapshotDates").size());
+        assertEquals(2, payload.get("snapshots").size());
         assertEquals(
                 "2026-08-01",
-                payload.get("snapshotDates").get(0).asText()
+                payload.get("snapshots").get(0).get("snapshotDate").asText()
         );
         assertEquals(
                 "2026-08-02",
-                payload.get("snapshotDates").get(1).asText()
+                payload.get("snapshots").get(1).get("snapshotDate").asText()
         );
     }
 
