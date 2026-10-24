@@ -58,6 +58,8 @@ import { ApiError } from '../../services/apiClient';
 import type { KnowledgeSource } from '../../services/apiKnowledge';
 import type { FinancialNewsArticle } from '../../services/apiFinancialNews';
 import NewsSources from './NewsSources';
+import WebSources from './WebSources';
+import type { WebSearchSource } from '../../services/apiWebSearch';
 import PortfolioBasis from './PortfolioBasis';
 import type { PortfolioContext } from '../../services/apiPortfolio';
 import { hexToRgba } from '../../utils/color';
@@ -76,6 +78,7 @@ interface ChatMessage {
   steps?: string[];
   sources?: KnowledgeSource[];
   newsSources?: FinancialNewsArticle[];
+  webSources?: WebSearchSource[];
   portfolioContext?: PortfolioContext | null;
 }
 
@@ -111,7 +114,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 1,
     role: 'assistant',
     content:
-      '你好，我可以参考知识库中的生效投资策略、复盘和研究资料，结合资产快照分析资产配置与投资决策，并标出资料来源。也可以查询近期财经讯息并展示原文链接。你可以查询完整资产历史；数据修改按设置中的 AI 权限处理。',
+      '你好，我可以参考知识库中的生效投资策略、复盘和研究资料，结合资产快照分析资产配置与投资决策，并标出资料来源。也可以查询近期财经讯息；启用联网搜索后还能补查公开网页并展示来源。你可以查询完整资产历史；数据修改按设置中的 AI 权限处理。',
   },
 ];
 
@@ -119,6 +122,7 @@ const ACTIVE_CONVERSATION_KEY = 'wealthflow-active-conversation';
 const toChatMessage = (item: AgentConversationMessage): ChatMessage => ({
   id: item.id, role: item.role, content: item.content, steps: item.response?.steps,
   sources: item.response?.sources ?? [], newsSources: item.response?.newsSources ?? [],
+  webSources: item.response?.webSources ?? [],
   portfolioContext: item.response?.portfolioContext ?? null,
 });
 
@@ -402,7 +406,7 @@ const Agent: React.FC = () => {
       setMessages((previous) => previous.map((item) =>
         item.id === placeholderId
           ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps,
-              sources: result.sources ?? [], newsSources: result.newsSources ?? [], portfolioContext: result.portfolioContext ?? null }
+              sources: result.sources ?? [], newsSources: result.newsSources ?? [], webSources: result.webSources ?? [], portfolioContext: result.portfolioContext ?? null }
           : item));
       void refreshConversations().catch(() => {});
       if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
@@ -678,6 +682,7 @@ const Agent: React.FC = () => {
                               {!!item.steps?.length && <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{item.steps.join(' → ')}</Text></div>}
                               {!!item.sources?.length && <KnowledgeSources sources={item.sources} />}
                               {!!item.newsSources?.length && <NewsSources sources={item.newsSources} />}
+                              {!!item.webSources?.length && <WebSources sources={item.webSources} />}
                               {item.portfolioContext && <PortfolioBasis context={item.portfolioContext} />}
                             </>
                           )}

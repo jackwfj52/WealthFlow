@@ -13,6 +13,8 @@ services:
       WEALTHFLOW_SECURITY_MASTER_KEY_FILE: /run/secrets/master_key
       WEALTHFLOW_NEWS_PYTHON: /usr/local/bin/python
       WEALTHFLOW_NEWS_SCRIPT: /app/tools/finance/news.py
+      WEALTHFLOW_WEB_SEARCH_ENABLED: ${WEALTHFLOW_WEB_SEARCH_ENABLED:-false}
+      WEALTHFLOW_WEB_SEARCH_SCRIPT: /app/tools/finance/web_search.py
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=50.0 -XX:+ExitOnOutOfMemoryError
       TZ: Asia/Taipei
     secrets:

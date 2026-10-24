@@ -198,6 +198,16 @@ public class OpenAiCompatibleGateway implements AiModelGateway {
             );
         }
 
+        String finishReason = choices.get(0).path("finish_reason").asText();
+        if ("length".equals(finishReason)) {
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED,
+                    "模型输出达到生成长度上限而被截断，请提高模型服务的输出额度或减少单次回答内容");
+        }
+        if ("content_filter".equals(finishReason)) {
+            throw new BusinessException(ErrorCode.AI_MODEL_CALL_FAILED,
+                    "模型服务过滤了本次输出，请调整提问后重试");
+        }
+
         JsonNode content = choices.get(0).get("message").get("content");
         if (content == null || content.isNull() || content.asText().isBlank()) {
             throw new BusinessException(

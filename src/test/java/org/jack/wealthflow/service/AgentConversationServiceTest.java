@@ -41,7 +41,9 @@ class AgentConversationServiceTest {
                     new org.jack.wealthflow.news.FinancialNewsDtos.Article("0123456789abcdef", "新闻标题", "摘要", "媒体",
                             "2026-10-24T10:00:00+08:00", "2026-10-24T14:00:00+08:00", "https://finance.eastmoney.com/a/test.html")),
                     new org.jack.wealthflow.dto.PortfolioContext("portfolio-test", "2026-10-24T14:00:00+08:00", null, null,
-                            null, List.of(), List.of(), null, null, List.of("暂无快照")));
+                            null, List.of(), List.of(), null, null, List.of("暂无快照")), List.of(
+                    new org.jack.wealthflow.websearch.WebSearchDtos.Source("web-0123456789abcdef", "官网资料", "搜索摘要",
+                            "https://example.com/a", "example.com", null, "2026-10-25T00:00:00+08:00")));
         });
         var service = new AgentConversationService(new JdbcTemplate(dataSource),
                 new TransactionTemplate(new DataSourceTransactionManager(dataSource)),
@@ -59,6 +61,7 @@ class AgentConversationServiceTest {
         assertEquals("回答2", detail.messages().get(3).response().reply());
         assertEquals("新闻标题", detail.messages().get(3).response().newsSources().get(0).title());
         assertEquals("portfolio-test", detail.messages().get(3).response().portfolioContext().id());
+        assertEquals("官网资料", detail.messages().get(3).response().webSources().get(0).title());
         assertEquals("改名", service.rename(id, "改名").title());
         service.delete(id);
         assertTrue(service.list().isEmpty());
@@ -68,6 +71,7 @@ class AgentConversationServiceTest {
         var response = new ObjectMapper().readValue("{\"reply\":\"历史回复\",\"steps\":[]}", AgentChatResponse.class);
         assertTrue(response.newsSources().isEmpty());
         assertTrue(response.sources().isEmpty());
+        assertTrue(response.webSources().isEmpty());
         assertNull(response.portfolioContext());
     }
 }

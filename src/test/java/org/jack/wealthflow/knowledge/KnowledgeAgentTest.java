@@ -37,7 +37,8 @@ class KnowledgeAgentTest {
                 null, List.of(), List.of(), null, null, List.of("暂无数据")));
         agent=new ToolAgentChatService(providers,gateway,categories,mock(SnapshotQueryService.class),actions,
                 mock(AiSnapshotSimulationService.class),permissions,mock(PendingActionService.class),new ObjectMapper(),search,
-                mock(org.jack.wealthflow.news.FinancialNewsService.class), portfolio);
+                mock(org.jack.wealthflow.news.FinancialNewsService.class), portfolio,
+                mock(org.jack.wealthflow.websearch.WebSearchService.class));
     }
     @Test void decisionReadsStrategiesAndPersistsValidatedSources() {
         when(gateway.complete(anyString(),anyString(),anyString(),anyString(),anyList()))

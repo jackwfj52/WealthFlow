@@ -19,6 +19,11 @@ try {
         publishedAt: '2026-10-24T10:00:00+08:00', retrievedAt: '2026-10-24T14:00:00+08:00', url: 'https://finance.eastmoney.com/a/test.html' },
       { id: 'fedcba9876543210', title: '无效链接保留文本', summary: '', publisher: '测试媒体',
         publishedAt: '2026-10-24T09:00:00+08:00', retrievedAt: '2026-10-24T14:00:00+08:00', url: 'javascript:alert(1)' },
+    ], webSources: [
+      { id: 'web-0123456789abcdef', title: '公司官网公告', snippet: '<script>网页摘要不会执行</script>公开信息',
+        url: 'https://example.com/release', siteName: 'example.com', publishedAt: null, retrievedAt: '2026-10-25T00:00:00+08:00' },
+      { id: 'web-fedcba9876543210', title: '不安全网页链接', snippet: '',
+        url: 'javascript:alert(1)', siteName: 'example.com', publishedAt: null, retrievedAt: '2026-10-25T00:00:00+08:00' },
     ] };
   const saved = [{ id: 'old', role: 'assistant', content: '旧会话仍可读取', response: { reply: '旧会话仍可读取', steps: [] }, createdAt: '' }];
   let sends = 0;
@@ -48,11 +53,22 @@ try {
   assert.equal(await page.getByRole('link', { name: '无效链接保留文本' }).count(), 0);
   assert.equal(await page.locator('script').filter({ hasText: '不会执行' }).count(), 0);
   await page.getByText('发布时间：2026-10-24 10:00:00+08:00', { exact: true }).waitFor();
+  await page.getByText('联网搜索来源 (2)', { exact: true }).click();
+  const webLink = page.getByRole('link', { name: '公司官网公告', exact: true });
+  await webLink.waitFor();
+  assert.equal(await webLink.getAttribute('href'), 'https://example.com/release');
+  assert.equal(await webLink.getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(await page.getByRole('link', { name: '不安全网页链接' }).count(), 0);
+  assert.equal(await page.locator('script').filter({ hasText: '网页摘要不会执行' }).count(), 0);
+  assert.equal(await page.getByText('发布时间：搜索结果未提供', { exact: true }).count(), 2);
   assert.equal(sends, 1);
   await page.reload();
   await page.getByText('财经讯息来源 (2)', { exact: true }).click();
   await link.waitFor();
-  await page.screenshot({ path: 'node_modules/.cache/financial-news-chat.png', fullPage: true });
+  await page.getByText('联网搜索来源 (2)', { exact: true }).click();
+  await webLink.waitFor();
+  await webLink.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'node_modules/.cache/financial-news-chat.png', fullPage: true, animations: 'disabled' });
   assert.deepEqual(errors, []);
-  console.log('财经讯息浏览器检查通过：新回复来源、发布时间、原文链接、旧会话兼容、刷新保留与无效链接处理。');
+  console.log('财经与联网搜索浏览器检查通过：新回复来源、未知发布时间、原文链接、旧会话兼容、刷新保留与无效链接处理。');
 } finally { await browser?.close(); await server.close(); }

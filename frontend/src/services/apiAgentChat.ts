@@ -9,6 +9,7 @@ import { apiClient } from './apiClient';
 import type { KnowledgeSource } from './apiKnowledge';
 import type { FinancialNewsArticle } from './apiFinancialNews';
 import type { PortfolioContext } from './apiPortfolio';
+import type { WebSearchSource } from './apiWebSearch';
 import type {
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
@@ -42,6 +43,7 @@ export interface AgentChatResult {
   /** Older conversations predate source persistence. */
   sources?: KnowledgeSource[];
   newsSources?: FinancialNewsArticle[];
+  webSources?: WebSearchSource[];
   portfolioContext?: PortfolioContext | null;
 }
 

@@ -17,12 +17,24 @@ public record AgentChatResponse(
         PendingActionExecutionResponse execution,
         java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources,
         java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources,
-        PortfolioContext portfolioContext
+        PortfolioContext portfolioContext,
+        java.util.List<org.jack.wealthflow.websearch.WebSearchDtos.Source> webSources
 ) {
     public AgentChatResponse {
         steps = steps == null ? java.util.List.of() : java.util.List.copyOf(steps);
         sources = sources == null ? java.util.List.of() : java.util.List.copyOf(sources);
         newsSources = newsSources == null ? java.util.List.of() : java.util.List.copyOf(newsSources);
+        webSources = webSources == null ? java.util.List.of() : java.util.List.copyOf(webSources);
+    }
+    public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
+                             DeleteSnapshotDraftResponse deleteDraft, String draftError,
+                             BatchSnapshotDraft batchDraft, java.util.List<String> steps,
+                             PendingActionExecutionResponse execution,
+                             java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources,
+                             java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources,
+                             PortfolioContext portfolioContext) {
+        this(reply, draft, deleteDraft, draftError, batchDraft, steps, execution, sources, newsSources,
+                portfolioContext, java.util.List.of());
     }
     public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
                              DeleteSnapshotDraftResponse deleteDraft, String draftError,

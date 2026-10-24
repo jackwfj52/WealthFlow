@@ -53,7 +53,8 @@ class PortfolioAgentTest {
         news = mock(FinancialNewsService.class);
         agent = new ToolAgentChatService(providers, model, categories, mock(SnapshotQueryService.class), actions,
                 mock(AiSnapshotSimulationService.class), permission, mock(PendingActionService.class), json, knowledge,
-                news, new PortfolioQueryService(categories, holdings, db.snapshots, db.transactions));
+                news, new PortfolioQueryService(categories, holdings, db.snapshots, db.transactions),
+                mock(org.jack.wealthflow.websearch.WebSearchService.class));
     }
 
     void composition(String tech) {

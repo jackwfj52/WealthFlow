@@ -18,6 +18,7 @@ COPY --from=build /build/target/WealthFlow-0.0.1-SNAPSHOT.jar ./wealthflow.jar
 COPY deploy/extract-sqlite.py /tmp/extract-sqlite.py
 RUN python /tmp/extract-sqlite.py && rm /tmp/extract-sqlite.py
 COPY tools/finance/news.py ./tools/finance/news.py
+COPY tools/finance/web_search.py ./tools/finance/web_search.py
 COPY deploy/check-health.py ./check-health.py
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

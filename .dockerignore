@@ -21,6 +21,7 @@ tools/*
 !tools/finance/
 tools/finance/*
 !tools/finance/news.py
+!tools/finance/web_search.py
 !tools/finance/requirements.txt
 !deploy/
 deploy/*

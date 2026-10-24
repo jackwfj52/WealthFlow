@@ -319,4 +319,29 @@ class OpenAiCompatibleGatewayTest {
                 exception.getMessage());
         assertFalse(exception.getMessage().contains(API_KEY));
     }
+
+    @Test
+    void shouldReportTruncationEvenIfContentLooksLikeValidJson() {
+        respond(httpServer, 200, """
+                {"choices":[{"finish_reason":"length","message":{"content":"{}"}}]}
+                """);
+        httpServer.start();
+        gateway = gatewayWithTimeout(Duration.ofSeconds(5));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> gateway.complete(baseUrl(), "model", API_KEY, "system", sampleMessages()));
+        assertTrue(exception.getMessage().contains("被截断"));
+        assertFalse(exception.getMessage().contains(API_KEY));
+    }
+
+    @Test
+    void shouldDistinguishFilteringFromEmptyOrMalformedOutput() {
+        respond(httpServer, 200, """
+                {"choices":[{"finish_reason":"content_filter","message":{"content":null}}]}
+                """);
+        httpServer.start();
+        gateway = gatewayWithTimeout(Duration.ofSeconds(5));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> gateway.complete(baseUrl(), "model", API_KEY, "system", sampleMessages()));
+        assertTrue(exception.getMessage().contains("过滤"));
+    }
 }

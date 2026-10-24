@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:.wealthflow/web-search.properties
   application:
     name: WealthFlow
 
@@ -17,6 +19,12 @@ wealthflow:
     # 留空时使用项目内 .venv-finance 的Python；可用环境变量覆盖。
     python: ${WEALTHFLOW_NEWS_PYTHON:}
     script: ${WEALTHFLOW_NEWS_SCRIPT:tools/finance/news.py}
+    timeout-seconds: 25
+  web-search:
+    # 确认第三方搜索服务后再显式启用；默认不发送任何搜索请求。
+    enabled: ${WEALTHFLOW_WEB_SEARCH_ENABLED:false}
+    python: ${WEALTHFLOW_WEB_SEARCH_PYTHON:${WEALTHFLOW_NEWS_PYTHON:}}
+    script: ${WEALTHFLOW_WEB_SEARCH_SCRIPT:tools/finance/web_search.py}
     timeout-seconds: 25
 
 mybatis:
