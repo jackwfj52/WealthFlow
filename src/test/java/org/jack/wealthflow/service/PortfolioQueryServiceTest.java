@@ -14,6 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -82,7 +83,7 @@ class PortfolioQueryServiceTest {
     }
 
     @Test void oldSnapshotAndMixedFundsExposeLimitsWithoutPretendingToLookThrough() throws Exception {
-        db.snapshots.create(LocalDate.now().minusDays(20), List.of(amount(stocks, "10000")));
+        db.snapshots.create(LocalDate.now(ZoneId.of("Asia/Taipei")).minusDays(20), List.of(amount(stocks, "10000")));
         holdings.replace(stocks, new HoldingRequest(List.of(new HoldingRequest.Item("纳斯达克100基金", new BigDecimal("60"), "MIXED"))));
         var result = read();
         assertEquals(20, result.snapshotAgeDays());

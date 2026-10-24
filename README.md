@@ -4,7 +4,7 @@ WealthFlow 是一个在自己电脑上运行的个人资产管理工具，通过
 
 **第一次使用？推荐下载 Windows 双击启动包：安装 Docker Desktop → 解压启动包 → 双击 `start.cmd`。无需 Git、Java、Node 或 Python。**
 
-[下载 Windows 启动包（Intel / AMD，约 264 MB）](https://github.com/jackwfj52/WealthFlow/releases/download/v2026.10.24-docker-desktop/WealthFlow-windows-amd64-20261024-175147-d51d75.zip) · [查看发布版本](https://github.com/jackwfj52/WealthFlow/releases)
+[下载 Windows 启动包（Intel / AMD，约 271 MB）](https://github.com/jackwfj52/WealthFlow/releases/download/v2026.10.25-ai-assistant/WealthFlow-windows-amd64-20261025-022433-707e88.zip) · [查看发布版本](https://github.com/jackwfj52/WealthFlow/releases)
 
 ## 快速开始
 
