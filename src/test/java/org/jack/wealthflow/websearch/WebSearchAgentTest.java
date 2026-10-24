@@ -47,7 +47,8 @@ class WebSearchAgentTest {
         actions = mock(BatchSnapshotActionService.class);
         agent = new ToolAgentChatService(providers, model, categories, mock(SnapshotQueryService.class), actions,
                 mock(AiSnapshotSimulationService.class), permission, mock(PendingActionService.class), new ObjectMapper(),
-                mock(KnowledgeSearchService.class), news, mock(PortfolioQueryService.class), search);
+                mock(KnowledgeSearchService.class), news, mock(PortfolioQueryService.class), search,
+                mock(org.jack.wealthflow.crypto.CryptoMarketService.class));
     }
 
     @Test void webSourcesCanSupplyCurrentMarketContextWithoutFinancialTool() {

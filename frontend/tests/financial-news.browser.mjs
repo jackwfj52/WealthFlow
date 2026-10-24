@@ -34,7 +34,7 @@ try {
     if (path === '/agent/conversations/news') data = { conversation, messages: saved, hasMore: false };
     if (path === '/agent/providers') data = [{ providerId: 'test', displayName: '测试模型', model: 'test', configured: true }];
     if (path === '/agent/permission') data = { level: 'READ_ONLY' };
-    if (path === '/agent/conversations/news/messages') {
+    if (path === '/agent/conversations/news/messages/stream') {
       sends++;
       data = { id: `answer-${sends}`, role: 'assistant', content: response.reply, response, createdAt: '' };
       saved.push(data);

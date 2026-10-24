@@ -6,7 +6,7 @@
  * - 后端业务错误（HTTP 4xx/5xx 或非零 code）统一抛出 ApiError，message 可直接展示
  * - 删除接口成功返回 204 No Content，无响应体
  */
-const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+export const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 interface ApiResponse<T> {
   code: number;

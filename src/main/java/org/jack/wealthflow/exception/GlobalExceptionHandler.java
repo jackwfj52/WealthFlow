@@ -2,6 +2,7 @@ package org.jack.wealthflow.exception;
 
 import org.jack.wealthflow.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -20,6 +21,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.valueOf(errorCode.getHttpStatus()))
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.failure(
                         errorCode.getCode(),
                         exception.getMessage(),
@@ -37,6 +39,7 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.failure(
                         ErrorCode.PARAM_INVALID.getCode(),
                         ErrorCode.PARAM_INVALID.getMessage()
@@ -49,6 +52,7 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.failure(
                         ErrorCode.SERVER_ERROR.getCode(),
                         ErrorCode.SERVER_ERROR.getMessage()

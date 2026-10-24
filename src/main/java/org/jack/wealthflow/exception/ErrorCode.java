@@ -32,7 +32,9 @@ public enum ErrorCode {
     AI_MODEL_AUTH_FAILED(50010, 502, "模型服务认证失败，请检查 API Key"),
     AI_MODEL_CALL_FAILED(50011, 502, "模型服务调用失败"),
     FINANCIAL_NEWS_UNAVAILABLE(50012, 502, "财经讯息数据源暂时不可用"),
-    WEB_SEARCH_UNAVAILABLE(50013, 502, "联网搜索暂时不可用");
+    WEB_SEARCH_UNAVAILABLE(50013, 502, "联网搜索暂时不可用"),
+    CRYPTO_MARKET_UNAVAILABLE(50014, 502, "币安行情暂时不可用"),
+    AGENT_BUSY(50015, 503, "助手正在处理较多请求，请稍后重试");
 
     private final int code;
     private final int httpStatus;

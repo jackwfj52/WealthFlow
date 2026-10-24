@@ -18,13 +18,26 @@ public record AgentChatResponse(
         java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources,
         java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources,
         PortfolioContext portfolioContext,
-        java.util.List<org.jack.wealthflow.websearch.WebSearchDtos.Source> webSources
+        java.util.List<org.jack.wealthflow.websearch.WebSearchDtos.Source> webSources,
+        java.util.List<org.jack.wealthflow.crypto.CryptoMarketContext> cryptoMarkets
 ) {
     public AgentChatResponse {
         steps = steps == null ? java.util.List.of() : java.util.List.copyOf(steps);
         sources = sources == null ? java.util.List.of() : java.util.List.copyOf(sources);
         newsSources = newsSources == null ? java.util.List.of() : java.util.List.copyOf(newsSources);
         webSources = webSources == null ? java.util.List.of() : java.util.List.copyOf(webSources);
+        cryptoMarkets = cryptoMarkets == null ? java.util.List.of() : java.util.List.copyOf(cryptoMarkets);
+    }
+    public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
+                             DeleteSnapshotDraftResponse deleteDraft, String draftError,
+                             BatchSnapshotDraft batchDraft, java.util.List<String> steps,
+                             PendingActionExecutionResponse execution,
+                             java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources,
+                             java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources,
+                             PortfolioContext portfolioContext,
+                             java.util.List<org.jack.wealthflow.websearch.WebSearchDtos.Source> webSources) {
+        this(reply, draft, deleteDraft, draftError, batchDraft, steps, execution, sources, newsSources,
+                portfolioContext, webSources, java.util.List.of());
     }
     public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
                              DeleteSnapshotDraftResponse deleteDraft, String draftError,

@@ -45,7 +45,7 @@ class ToolAgentFormatRecoveryTest {
         agent = new ToolAgentChatService(providers, model, categories, mock(SnapshotQueryService.class), actions,
                 mock(AiSnapshotSimulationService.class), permissions, mock(PendingActionService.class),
                 new ObjectMapper(), knowledge, mock(FinancialNewsService.class), portfolio,
-                mock(org.jack.wealthflow.websearch.WebSearchService.class));
+                mock(org.jack.wealthflow.websearch.WebSearchService.class), mock(org.jack.wealthflow.crypto.CryptoMarketService.class));
     }
 
     @Test void repairReceivesFaultyOutputAndSafeSpecificDiagnostic() {

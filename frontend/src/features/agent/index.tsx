@@ -17,7 +17,6 @@ import {
   Row,
   Select,
   Space,
-  Spin,
   Typography,
   Tag,
   message,
@@ -60,6 +59,10 @@ import type { FinancialNewsArticle } from '../../services/apiFinancialNews';
 import NewsSources from './NewsSources';
 import WebSources from './WebSources';
 import type { WebSearchSource } from '../../services/apiWebSearch';
+import { streamAgentMessage, type AgentProgressEvent } from '../../services/apiAgentStream';
+import type { CryptoMarketContext } from '../../services/apiCryptoMarket';
+import AgentActivity from './AgentActivity';
+import CryptoMarkets from './CryptoMarkets';
 import PortfolioBasis from './PortfolioBasis';
 import type { PortfolioContext } from '../../services/apiPortfolio';
 import { hexToRgba } from '../../utils/color';
@@ -79,6 +82,10 @@ interface ChatMessage {
   sources?: KnowledgeSource[];
   newsSources?: FinancialNewsArticle[];
   webSources?: WebSearchSource[];
+  cryptoMarkets?: CryptoMarketContext[];
+  progress?: AgentProgressEvent[];
+  startedAt?: number;
+  lastContactAt?: number;
   portfolioContext?: PortfolioContext | null;
 }
 
@@ -123,6 +130,7 @@ const toChatMessage = (item: AgentConversationMessage): ChatMessage => ({
   id: item.id, role: item.role, content: item.content, steps: item.response?.steps,
   sources: item.response?.sources ?? [], newsSources: item.response?.newsSources ?? [],
   webSources: item.response?.webSources ?? [],
+  cryptoMarkets: item.response?.cryptoMarkets ?? [],
   portfolioContext: item.response?.portfolioContext ?? null,
 });
 
@@ -161,6 +169,8 @@ const Agent: React.FC = () => {
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const conversationGeneration = useRef(0);
+  const streamAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => streamAbort.current?.abort(), []);
   const olderRequest = useRef<symbol | null>(null);
   const [form] = Form.useForm<DraftEntryFormValues>();
 
@@ -388,11 +398,23 @@ const Agent: React.FC = () => {
         role: 'assistant',
         content: '',
         loading: true,
+        progress: [],
+        startedAt: Date.now(),
       },
     ]);
     setInput('');
     try {
-      const saved = await apiAgentConversations.send(activeConversationId, selectedProviderId, content);
+      const controller = new AbortController();
+      streamAbort.current = controller;
+      const saved = await streamAgentMessage(activeConversationId, selectedProviderId, content, event => {
+        setMessages(previous => previous.map(item => {
+          if (item.id !== placeholderId) return item;
+          const progress = [...(item.progress ?? [])];
+          const index = progress.findIndex(step => step.id === event.id);
+          if (index >= 0) progress[index] = event; else progress.push(event);
+          return { ...item, progress, lastContactAt: Date.now() };
+        }));
+      }, () => setMessages(previous => previous.map(item => item.id === placeholderId ? { ...item, lastContactAt: Date.now() } : item)), controller.signal);
       const result = saved.response!;
 
       const hasOperation = Boolean(result.draft || result.deleteDraft || result.batchDraft || result.execution);
@@ -406,7 +428,9 @@ const Agent: React.FC = () => {
       setMessages((previous) => previous.map((item) =>
         item.id === placeholderId
           ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps,
-              sources: result.sources ?? [], newsSources: result.newsSources ?? [], webSources: result.webSources ?? [], portfolioContext: result.portfolioContext ?? null }
+              sources: result.sources ?? [], newsSources: result.newsSources ?? [], webSources: result.webSources ?? [],
+              cryptoMarkets: result.cryptoMarkets ?? [], portfolioContext: result.portfolioContext ?? null,
+              progress: item.progress, startedAt: item.startedAt, lastContactAt: item.lastContactAt }
           : item));
       void refreshConversations().catch(() => {});
       if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
@@ -436,13 +460,13 @@ const Agent: React.FC = () => {
         message.success(result.execution.displaySummary || 'AI 操作已直接完成');
       }
     } catch (err) {
-      setMessages((previous) =>
-        previous.filter((item) => item.id !== placeholderId && item.id !== userMessage.id)
-      );
+      setMessages(previous => previous.map(item => item.id === placeholderId
+        ? { ...item, loading: false, content: err instanceof Error ? err.message : '助手处理失败，请刷新会话核对结果后重试' } : item));
       if (err instanceof Error) {
         message.error(err.message);
       }
     } finally {
+      streamAbort.current = null;
       setSending(false);
       void apiAgentPermission.get().then(result => setAiPermission(result.level)).catch(() => {});
     }
@@ -672,17 +696,19 @@ const Agent: React.FC = () => {
                           }}
                         >
                           {item.loading ? (
-                            <Space size={8}>
-                              <Spin size="small" />
-                              <Text>正在查询或逐日计算，可能需要多次调用模型...</Text>
-                            </Space>
+                            <AgentActivity events={item.progress ?? []} active startedAt={item.startedAt ?? Date.now()} lastContactAt={item.lastContactAt} />
                           ) : (
                             <>
                               {item.content}
+                              {!!item.progress?.length && <Collapse size="small" style={{ marginTop: 8 }} items={[{
+                                key: 'progress', label: `处理过程 (${item.progress.length}步)`,
+                                children: <AgentActivity events={item.progress} active={false} startedAt={item.startedAt ?? 0} />,
+                              }]} />}
                               {!!item.steps?.length && <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{item.steps.join(' → ')}</Text></div>}
                               {!!item.sources?.length && <KnowledgeSources sources={item.sources} />}
                               {!!item.newsSources?.length && <NewsSources sources={item.newsSources} />}
                               {!!item.webSources?.length && <WebSources sources={item.webSources} />}
+                              {!!item.cryptoMarkets?.length && <CryptoMarkets contexts={item.cryptoMarkets} />}
                               {item.portfolioContext && <PortfolioBasis context={item.portfolioContext} />}
                             </>
                           )}

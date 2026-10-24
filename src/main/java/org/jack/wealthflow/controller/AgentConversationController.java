@@ -3,8 +3,11 @@ package org.jack.wealthflow.controller;
 import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.dto.*;
 import org.jack.wealthflow.service.AgentConversationService;
+import org.jack.wealthflow.service.AgentConversationStreamService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +18,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/agent/conversations")
 public class AgentConversationController {
     private final AgentConversationService conversations;
+    private final AgentConversationStreamService streams;
 
     public record SendRequest(String providerId, String message) { }
     public record RenameRequest(String title) { }
@@ -54,6 +58,13 @@ public class AgentConversationController {
         return ApiResponse.success(conversations.send(id,
                 request == null ? null : request.providerId(),
                 request == null ? null : request.message()));
+    }
+
+    @PostMapping(value = "/{id}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> stream(@PathVariable String id, @RequestBody SendRequest request) {
+        var emitter = streams.send(id, request == null ? null : request.providerId(), request == null ? null : request.message());
+        return ResponseEntity.ok().header("Cache-Control", "no-cache, no-transform")
+                .header("X-Accel-Buffering", "no").body(emitter);
     }
 
     @PostMapping("/{id}/import")

@@ -10,6 +10,7 @@ import type { KnowledgeSource } from './apiKnowledge';
 import type { FinancialNewsArticle } from './apiFinancialNews';
 import type { PortfolioContext } from './apiPortfolio';
 import type { WebSearchSource } from './apiWebSearch';
+import type { CryptoMarketContext } from './apiCryptoMarket';
 import type {
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
@@ -44,6 +45,7 @@ export interface AgentChatResult {
   sources?: KnowledgeSource[];
   newsSources?: FinancialNewsArticle[];
   webSources?: WebSearchSource[];
+  cryptoMarkets?: CryptoMarketContext[];
   portfolioContext?: PortfolioContext | null;
 }
 

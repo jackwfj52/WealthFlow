@@ -57,7 +57,7 @@ class LivePortfolioAcceptanceTest {
                 mock(SnapshotQueryService.class), actions, mock(AiSnapshotSimulationService.class), permission,
                 mock(PendingActionService.class), json, knowledge, news,
                 new PortfolioQueryService(categories, holdingService, db.snapshots, db.transactions),
-                mock(org.jack.wealthflow.websearch.WebSearchService.class));
+                mock(org.jack.wealthflow.websearch.WebSearchService.class), mock(org.jack.wealthflow.crypto.CryptoMarketService.class));
         Map<String, AgentChatResponse> results = new LinkedHashMap<>();
         String question = "现在加仓英伟达怎么样？请先读取我的当前持仓。科技行情很好是我的主观看法，未核实，不需要联网查询新闻。请区分股票类别占比和总资产占比。";
         for (String pct : List.of("60", "5")) {

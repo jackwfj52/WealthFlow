@@ -104,6 +104,11 @@ public class AgentConversationService {
     }
 
     public AgentConversationMessage send(String id, String providerId, String content) {
+        return send(id, providerId, content, null);
+    }
+
+    public AgentConversationMessage send(String id, String providerId, String content,
+            java.util.function.Consumer<AgentProgressEvent> progress) {
         if (providerId == null || providerId.isBlank() || content == null
                 || content.isBlank() || content.strip().length() > AgentChatMessage.CONTENT_MAX_LENGTH)
             throw invalid("请选择模型并输入不超过2000字的消息");
@@ -115,7 +120,10 @@ public class AgentConversationService {
                     (rs, row) -> new AgentChatMessage(rs.getString("role"),
                             trim(rs.getString("content"))), id, AgentChatRequest.HISTORY_MAX_SIZE);
             Collections.reverse(history);
-            AgentChatResponse result = chatService.chat(new AgentChatRequest(providerId, content.strip(), history));
+            var request = new AgentChatRequest(providerId, content.strip(), history);
+            AgentChatResponse result = progress == null ? chatService.chat(request) : chatService.chat(request, progress);
+            var reporter = new org.jack.wealthflow.agent.AgentProgressReporter(progress);
+            String saving = reporter.start("save_answer", "校验并保存本次回答", "正在保存回答与引用来源");
             String responseJson;
             try { responseJson = json.writeValueAsString(result); }
             catch (JsonProcessingException e) { throw new IllegalStateException("无法保存助手回复", e); }
@@ -135,6 +143,7 @@ public class AgentConversationService {
                 jdbc.update("UPDATE agent_conversation SET title=?,provider_id=?,updated_at=? WHERE id=?",
                         title, providerId, now, id);
             });
+            reporter.finish(saving, true, "回答和来源已保存");
             return new AgentConversationMessage(assistantId, "assistant", result.reply(), result, actionId, now);
         }
     }
