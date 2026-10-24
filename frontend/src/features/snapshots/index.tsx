@@ -42,6 +42,7 @@ import {
   DownloadOutlined,
   InboxOutlined,
   CheckSquareOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -87,7 +88,24 @@ const Snapshots: React.FC = () => {
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add');
   const [editingSnapshot, setEditingSnapshot] = useState<AssetSnapshot | null>(null);
   const [form] = Form.useForm();
+  const snapshotDate = Form.useWatch('snapshotDate', form) as dayjs.Dayjs | undefined;
   const [saving, setSaving] = useState(false);
+  const previousSnapshot = useMemo(() => {
+    if (!snapshotDate?.isValid() || snapshotDate.isAfter(dayjs(), 'day')) return undefined;
+    const date = snapshotDate.format('YYYY-MM-DD');
+    return snapshots.reduce<AssetSnapshot | undefined>((previous, snapshot) =>
+      snapshot.snapshotDate < date && (!previous || snapshot.snapshotDate > previous.snapshotDate)
+        ? snapshot : previous, undefined);
+  }, [snapshots, snapshotDate]);
+  const previousAmounts = new Map(previousSnapshot?.items.map(item => [item.categoryId, item.amount]));
+  const canReuseAmounts = categories.some(category => previousAmounts.has(category.id));
+  const reusePreviousAmounts = () => {
+    if (drawerMode !== 'add' || !previousSnapshot || !canReuseAmounts) return;
+    form.setFieldsValue({ items: categories.map(category => ({
+      categoryId: category.id, amount: previousAmounts.get(category.id) ?? '',
+    })) });
+    message.success(`已填入 ${previousSnapshot.snapshotDate} 的金额，可修改后新增快照`);
+  };
 
   // 导入导出
   const [importOpen, setImportOpen] = useState(false);
@@ -149,6 +167,7 @@ const Snapshots: React.FC = () => {
     setDrawerMode('add');
     setEditingSnapshot(null);
     form.resetFields();
+    form.setFieldsValue({ snapshotDate: dayjs() });
     setDrawerOpen(true);
   }, [form]);
 
@@ -875,6 +894,21 @@ const Snapshots: React.FC = () => {
               placeholder="请选择日期（不能晚于今天）"
             />
           </Form.Item>
+
+          {drawerMode === 'add' && (
+            <Space orientation="vertical" size={6} style={{ marginBottom: 12 }}>
+              <Button icon={<CopyOutlined />} disabled={!canReuseAmounts || saving}
+                onClick={reusePreviousAmounts}>沿用上一期金额</Button>
+              <Typography.Text type="secondary">
+                {!snapshotDate ? '先选择快照日期，再沿用此前最近一期的金额。'
+                  : previousSnapshot
+                    ? canReuseAmounts
+                      ? `来源：${previousSnapshot.snapshotDate}。点击后替换当前表单金额，新分类留空，可继续修改。`
+                      : `${previousSnapshot.snapshotDate} 的快照中没有可沿用的现有分类。`
+                    : '所选日期之前暂无快照，请手动填写金额。'}
+              </Typography.Text>
+            </Space>
+          )}
 
           <Divider plain>分类金额明细</Divider>
           <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
