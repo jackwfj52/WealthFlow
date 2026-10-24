@@ -11,11 +11,14 @@ export interface AssetCategory {
 export interface HoldingInput {
   name: string;
   percentage: number;
+  /** 用户确认的行业分组，未标注时不猜测。 */
+  sector?: string;
 }
 
 export interface AssetHolding extends HoldingInput {
   id: string;
   categoryId: string;
+  updatedAt?: string;
 }
 
 /** 快照明细项 —— 某一天某个分类的金额 */

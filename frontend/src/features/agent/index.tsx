@@ -58,6 +58,8 @@ import { ApiError } from '../../services/apiClient';
 import type { KnowledgeSource } from '../../services/apiKnowledge';
 import type { FinancialNewsArticle } from '../../services/apiFinancialNews';
 import NewsSources from './NewsSources';
+import PortfolioBasis from './PortfolioBasis';
+import type { PortfolioContext } from '../../services/apiPortfolio';
 import { hexToRgba } from '../../utils/color';
 import './index.css';
 
@@ -74,6 +76,7 @@ interface ChatMessage {
   steps?: string[];
   sources?: KnowledgeSource[];
   newsSources?: FinancialNewsArticle[];
+  portfolioContext?: PortfolioContext | null;
 }
 
 interface DraftEntryFormValues {
@@ -116,6 +119,7 @@ const ACTIVE_CONVERSATION_KEY = 'wealthflow-active-conversation';
 const toChatMessage = (item: AgentConversationMessage): ChatMessage => ({
   id: item.id, role: item.role, content: item.content, steps: item.response?.steps,
   sources: item.response?.sources ?? [], newsSources: item.response?.newsSources ?? [],
+  portfolioContext: item.response?.portfolioContext ?? null,
 });
 
 const knowledgeTypeLabel = (type: KnowledgeSource['type']) => ({
@@ -397,7 +401,7 @@ const Agent: React.FC = () => {
       setMessages((previous) => previous.map((item) =>
         item.id === placeholderId
           ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps,
-              sources: result.sources ?? [], newsSources: result.newsSources ?? [] }
+              sources: result.sources ?? [], newsSources: result.newsSources ?? [], portfolioContext: result.portfolioContext ?? null }
           : item));
       void refreshConversations().catch(() => {});
       if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
@@ -673,6 +677,7 @@ const Agent: React.FC = () => {
                               {!!item.steps?.length && <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{item.steps.join(' → ')}</Text></div>}
                               {!!item.sources?.length && <KnowledgeSources sources={item.sources} />}
                               {!!item.newsSources?.length && <NewsSources sources={item.newsSources} />}
+                              {item.portfolioContext && <PortfolioBasis context={item.portfolioContext} />}
                             </>
                           )}
                         </div>

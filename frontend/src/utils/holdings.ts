@@ -1,5 +1,16 @@
 import type { HoldingInput } from '../types/domain';
 
+export const SECTOR_OPTIONS = [
+  { value: 'TECH', label: '科技' }, { value: 'FINANCE', label: '金融' },
+  { value: 'CONSUMER', label: '消费' }, { value: 'HEALTHCARE', label: '医疗' },
+  { value: 'INDUSTRIAL', label: '工业' }, { value: 'ENERGY', label: '能源' },
+  { value: 'MATERIALS', label: '材料' }, { value: 'UTILITIES', label: '公用事业' },
+  { value: 'REAL_ESTATE', label: '房地产' }, { value: 'COMMUNICATION', label: '通信服务' },
+  { value: 'PRECIOUS_METALS', label: '贵金属' }, { value: 'CRYPTO', label: '加密货币' },
+  { value: 'MIXED', label: '混合/宽基' }, { value: 'OTHER', label: '其他' },
+];
+export const sectorLabel = (sector?: string) => SECTOR_OPTIONS.find(item => item.value === sector)?.label ?? '未标注';
+
 export function validateHoldings(input: unknown): HoldingInput[] {
   if (!Array.isArray(input) || input.length > 200) throw new Error('每个类别最多登记200项持仓');
   const names = new Set<string>();
@@ -16,7 +27,10 @@ export function validateHoldings(input: unknown): HoldingInput[] {
     const bps = Math.round(percentage * 100);
     if (Math.abs(percentage * 100 - bps) > 1e-8) throw new Error('持仓占比最多保留两位小数');
     total += bps;
-    return { name, percentage: bps / 100 };
+    const sector = typeof item.sector === 'string' ? item.sector.trim() : item.sector;
+    if (sector != null && sector !== '' && !SECTOR_OPTIONS.some(option => option.value === sector))
+      throw new Error('行业标签无效，请选择支持的行业或留空');
+    return { name, percentage: bps / 100, ...(sector ? { sector } : {}) };
   });
   if (total > 10000) throw new Error('同一资产类别的持仓占比合计不能超过100%');
   return normalized;

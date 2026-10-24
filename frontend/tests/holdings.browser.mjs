@@ -43,6 +43,9 @@ try {
   const card = title => page.locator('.ant-card').filter({ has: page.locator('.ant-card-head-title').getByText(title, { exact: true }) });
   const dialog = page.getByRole('dialog');
   await card('基金持仓').getByRole('button', { name: '管理持仓' }).click();
+  await dialog.getByRole('combobox').nth(0).click();
+  await dialog.getByRole('combobox').nth(0).fill('混合');
+  await page.locator('.ant-select-dropdown:visible').getByText('混合/宽基', { exact: true }).click();
   await dialog.getByRole('spinbutton').nth(0).fill('80');
   await dialog.getByRole('button', { name: '保存持仓' }).click();
   await dialog.getByText('同一资产类别的持仓占比合计不能超过100%').waitFor();
@@ -52,6 +55,7 @@ try {
   await dialog.getByRole('button', { name: '保存持仓' }).click();
   await dialog.waitFor({ state: 'hidden' });
   assert.equal(saves, 1);
+  assert.equal(holdings.find(item => item.categoryId === '1').sector, 'MIXED');
   await page.reload();
   await card('基金持仓').getByText('66.67%', { exact: true }).waitFor();
   await card('基金持仓').getByRole('button', { name: '管理持仓' }).click();

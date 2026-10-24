@@ -30,6 +30,12 @@ public class DbSchemaMigration implements ApplicationRunner {
             jdbcTemplate.execute("ALTER TABLE asset_category ADD COLUMN color TEXT");
         }
         backfillCategoryColors();
+        if (!hasColumn("asset_holding", "sector")) {
+            jdbcTemplate.execute("ALTER TABLE asset_holding ADD COLUMN sector TEXT");
+        }
+        if (!hasColumn("asset_holding", "updated_at")) {
+            jdbcTemplate.execute("ALTER TABLE asset_holding ADD COLUMN updated_at TEXT");
+        }
     }
 
     private boolean hasColumn(String table, String column) {

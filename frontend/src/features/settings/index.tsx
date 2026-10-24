@@ -106,7 +106,7 @@ const Settings: React.FC = () => {
       ]);
       const json = buildBackupJson(categories.map(category => ({ ...category,
         holdings: holdings.filter(item => item.categoryId === category.id)
-          .map(({ name, percentage }) => ({ name, percentage })),
+          .map(({ name, percentage, sector }) => ({ name, percentage, ...(sector ? { sector } : {}) })),
       })), snapshots);
       downloadTextFile(`wealthflow-backup-${dayjs().format('YYYY-MM-DD')}.json`, json);
       message.success(`已导出 ${categories.length} 个分类、${snapshots.length} 条快照、${holdings.length} 项持仓`);

@@ -14,7 +14,7 @@ export const mockHoldingService = {
   async replace(categoryId: string, input: HoldingInput[]): Promise<AssetHolding[]> {
     const items = validateHoldings(input);
     if (!await categoryService.getById(categoryId)) throw new Error('该资产分类不存在');
-    const saved = items.map(item => ({ ...item, id: generateId(), categoryId }));
+    const saved = items.map(item => ({ ...item, id: generateId(), categoryId, updatedAt: new Date().toISOString() }));
     localStorage.setItem(HOLDINGS_STORAGE_KEY,
       JSON.stringify([...readMockHoldings().filter(item => item.categoryId !== categoryId), ...saved]));
     return saved;

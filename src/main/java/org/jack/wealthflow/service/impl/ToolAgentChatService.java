@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.jack.wealthflow.agent.AgentToolPrompt;
 import org.jack.wealthflow.agent.AgentWriteIntent;
 import org.jack.wealthflow.agent.SyntheticCreateIntent;
+import org.jack.wealthflow.agent.PortfolioIntent;
 import org.jack.wealthflow.dto.*;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.mapper.AssetCategoryMapper;
@@ -48,6 +49,7 @@ public class ToolAgentChatService implements AgentChatService {
     private final ObjectMapper json;
     private final KnowledgeSearchService knowledge;
     private final FinancialNewsService news;
+    private final PortfolioQueryService portfolio;
 
     @Override
     public AgentChatResponse chat(AgentChatRequest request) {
@@ -83,10 +85,15 @@ public class ToolAgentChatService implements AgentChatService {
         String newsFailure = null;
         boolean newsAttempted = false;
         boolean correctedNews = false;
+        boolean needsPortfolio = PortfolioIntent.needsContext(request.message(), request.history());
+        PortfolioContext portfolioContext = null;
+        boolean portfolioAttempted = false;
+        boolean correctedPortfolio = false;
+        String portfolioFailure = null;
         boolean needsNews = Pattern.compile("(?i)(最新|最近|今日|今天|本周|查询|搜索|查一下|看看).*(新闻|快讯|财经资讯|财经讯息|财经消息|news)|(新闻|快讯|财经资讯|财经讯息|财经消息|news).*(最新|最近|今日|今天|本周|查询|搜索)")
                 .matcher(request.message()).find();
-        boolean investmentQuestion = !AgentWriteIntent.explicit(request.message()) && KnowledgeIntent.investment(request.message());
-        if (!AgentWriteIntent.explicit(request.message()) && KnowledgeIntent.needsKnowledge(request.message())) {
+        boolean investmentQuestion = needsPortfolio || (!AgentWriteIntent.explicit(request.message()) && KnowledgeIntent.investment(request.message()));
+        if (needsPortfolio || (!AgentWriteIntent.explicit(request.message()) && KnowledgeIntent.needsKnowledge(request.message()))) {
             KnowledgeDtos.SearchResult context = knowledge.search(new KnowledgeDtos.Search(request.message(),
                     investmentQuestion ? "STRATEGY" : null, 4, false));
             context.results().forEach(source -> retrieved.put(source.id(), source));
@@ -108,6 +115,31 @@ public class ToolAgentChatService implements AgentChatService {
             if (kind.equals("answer")) {
                 String reply = output.path("reply").asText("").trim();
                 if (reply.isEmpty()) return answer("模型没有给出有效回答，请重试。", null, steps);
+                if ((needsPortfolio && portfolioContext == null) || (portfolioAttempted && portfolioContext == null)) {
+                    if (!correctedPortfolio && round < 5) {
+                        correctedPortfolio = true;
+                        messages.add(new AgentChatMessage("assistant", encode(output)));
+                        messages.add(new AgentChatMessage("user", "后端持仓依据校验：请先调用query_portfolio读取本次真实组合，再回答加减仓或配置问题；不能用记忆或猜测代替持仓。"));
+                        continue;
+                    }
+                    return answer("未能读取本次真实持仓与资产配置，暂时无法给出针对你的加减仓判断。"
+                            + (portfolioFailure == null ? "请重新提问以调用持仓工具。" : "查询提示：" + portfolioFailure), null, steps);
+                }
+                var portfolioMatcher = Pattern.compile("\\[持仓:([^\\]]+)\\]").matcher(reply);
+                boolean citedPortfolio = false, unknownPortfolio = false;
+                while (portfolioMatcher.find()) {
+                    if (portfolioContext != null && portfolioContext.id().equals(portfolioMatcher.group(1))) citedPortfolio = true;
+                    else unknownPortfolio = true;
+                }
+                if (unknownPortfolio || (portfolioContext != null && !citedPortfolio)) {
+                    if (!correctedPortfolio && round < 5) {
+                        correctedPortfolio = true;
+                        messages.add(new AgentChatMessage("assistant", encode(output)));
+                        messages.add(new AgentChatMessage("user", "后端持仓引用校验：请基于刚才query_portfolio结果说明仓位、集中度或缺失信息，并引用[持仓:工具返回的id]，不能编造引用。"));
+                        continue;
+                    }
+                    return answer("模型未提供可核对的本次持仓依据，请重新查询后再讨论加减仓。", null, steps);
+                }
                 if (needsNews && !newsAttempted) {
                     if (!correctedNews && round < 5) {
                         correctedNews = true;
@@ -165,9 +197,13 @@ public class ToolAgentChatService implements AgentChatService {
                     return answer("相关知识文档在回答期间发生变化，请重新提问以使用最新策略。", null, steps);
                 if (investmentQuestion && !hasStrategy) reply = "本次未检索到相关生效投资策略。\n\n" + reply;
                 return new AgentChatResponse(reply, null, null, null, null, steps, null,
-                        cited.stream().map(retrieved::get).toList(), newsCited.stream().map(newsRetrieved::get).toList());
+                        cited.stream().map(retrieved::get).toList(), newsCited.stream().map(newsRetrieved::get).toList(), portfolioContext);
             }
             if (kind.equals("propose_ai_simulation")) {
+                if (needsPortfolio) {
+                    messages.add(new AgentChatMessage("user", "后端意图校验：本次是投资或持仓分析，不允许修改快照或生成模拟数据。请调用query_portfolio后分析。"));
+                    continue;
+                }
                 if (level == AiPermissionLevel.READ_ONLY) return readOnlyAnswer();
                 if (simulationMessage == null)
                     return answer("如需让我自拟金额，请明确说要生成模拟快照及日期范围。", null, steps);
@@ -181,6 +217,10 @@ public class ToolAgentChatService implements AgentChatService {
                 }
             }
             if (kind.equals("propose_batch_snapshots")) {
+                if (needsPortfolio) {
+                    messages.add(new AgentChatMessage("user", "后端意图校验：加减仓和配置讨论不是快照写入授权；请调用query_portfolio并给出分析，不能创建操作草案。"));
+                    continue;
+                }
                 if (level == AiPermissionLevel.READ_ONLY) return readOnlyAnswer();
                 try {
                     JsonNode proposal = output.get("proposal");
@@ -207,6 +247,14 @@ public class ToolAgentChatService implements AgentChatService {
                 JsonNode args = output.get("arguments");
                 if (args == null || !args.isObject()) throw invalid("工具参数必须为对象");
                 switch (tool) {
+                    case "query_portfolio" -> {
+                        portfolioAttempted = true;
+                        portfolioContext = portfolio.query(args);
+                        portfolioFailure = null;
+                        result = portfolioContext;
+                        steps.add("查询当前持仓与资产配置：" + portfolioContext.categories().size() + "类（快照："
+                                + (portfolioContext.snapshotDate() == null ? "暂无" : portfolioContext.snapshotDate()) + "）");
+                    }
                     case "query_snapshots" -> {
                         result = queries.query(args);
                         steps.add("查询资产快照并计算统计");
@@ -227,7 +275,7 @@ public class ToolAgentChatService implements AgentChatService {
                         result = context;
                         steps.add("查询财经讯息：" + context.articles().size() + "条（AKShare / 东方财富）");
                     }
-                    default -> throw invalid("未知工具；只允许查询快照、检索知识库或查询财经讯息");
+                    default -> throw invalid("未知工具；只允许查询当前组合、查询快照、检索知识库或查询财经讯息");
                 }
             } catch (BusinessException e) {
                 result = Map.of("error", e.getMessage());
@@ -235,6 +283,11 @@ public class ToolAgentChatService implements AgentChatService {
                     newsAttempted = true;
                     newsFailure = e.getMessage();
                     steps.add("财经讯息查询未完成");
+                }
+                if (tool.equals("query_portfolio")) {
+                    portfolioAttempted = true;
+                    portfolioFailure = e.getMessage();
+                    steps.add("当前持仓查询未完成");
                 }
             }
             messages.add(new AgentChatMessage("assistant", encode(output)));

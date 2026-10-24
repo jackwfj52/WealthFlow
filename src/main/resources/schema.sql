@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS asset_holding (
     category_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     weight_bps INTEGER NOT NULL CHECK (weight_bps > 0 AND weight_bps <= 10000),
+    sector TEXT,
+    updated_at TEXT,
     position INTEGER NOT NULL,
     UNIQUE (category_id, name COLLATE NOCASE),
     FOREIGN KEY (category_id) REFERENCES asset_category(id)

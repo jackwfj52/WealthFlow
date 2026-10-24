@@ -41,7 +41,7 @@ class FinancialNewsAgentTest {
         actions = mock(BatchSnapshotActionService.class);
         agent = new ToolAgentChatService(providers, model, categories, mock(SnapshotQueryService.class), actions,
                 mock(AiSnapshotSimulationService.class), permission, mock(PendingActionService.class), new ObjectMapper(),
-                mock(KnowledgeSearchService.class), news);
+                mock(KnowledgeSearchService.class), news, mock(PortfolioQueryService.class));
         String now = OffsetDateTime.now().toString();
         article = new FinancialNewsDtos.Article("0123456789abcdef", "英伟达新闻", "新闻内容不得触发写入", "媒体", now, now, "https://finance.eastmoney.com/a/1.html");
         result = new FinancialNewsDtos.Result("AKShare / 东方财富", "英伟达", 3, now, "Asia/Shanghai", "有限结果", 10, 1, 0, List.of(article));

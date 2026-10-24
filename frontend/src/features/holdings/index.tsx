@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert, Button, Card, Col, Empty, Form, Input, InputNumber, Modal,
-  Progress, Row, Space, Spin, Table, Tag, Typography, message,
+  Progress, Row, Select, Space, Spin, Table, Tag, Typography, message,
 } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { useApp } from '../../app/storage';
 import { holdingService } from '../../services';
 import type { AssetCategory, AssetHolding, HoldingInput } from '../../types/domain';
 import { getCategoryColor } from '../../utils/color';
-import { formatPercentage, totalPercentage, validateHoldings } from '../../utils/holdings';
+import { formatPercentage, totalPercentage, validateHoldings, SECTOR_OPTIONS, sectorLabel } from '../../utils/holdings';
 import './index.css';
 
 const { Text } = Typography;
@@ -47,7 +47,7 @@ export default function Holdings() {
     const current = holdings.filter(item => item.categoryId === category.id);
     form.resetFields();
     form.setFieldsValue({ items: current.length
-      ? current.map(({ name, percentage }) => ({ name, percentage }))
+      ? current.map(({ name, percentage, sector }) => ({ name, percentage, ...(sector ? { sector } : {}) }))
       : [{ name: '' }] });
     setEditing(category);
   };
@@ -76,7 +76,7 @@ export default function Holdings() {
     {categories.length === 0 ? <EmptyState description="先添加资产类别，再登记该类别下的具体持仓"
       actionLabel="新增资产类别" onAction={() => navigate('/categories')} /> : <>
       <Alert type="info" showIcon title="占比按所属资产类别计算"
-        description="例如基金中的纳斯达克占比 60%，表示它占基金资产的 60%。每类合计最多 100%，剩余部分显示为未登记。这里维护当前持仓结构。"
+        description="例如纳斯达克占基金的 60%，表示类内占比。可为标的补充行业标签，供 AI 分析集中度；混合或宽基基金选择混合/宽基，未知时留空。每类合计最多 100%，剩余部分为未登记。"
         style={{ marginBottom: 20 }} />
       <Row gutter={[16, 16]}>
         {categories.map((category, index) => {
@@ -98,8 +98,10 @@ export default function Holdings() {
               <Progress percent={registered} showInfo={false} strokeColor={color} size="small" />
               {current.length ? <Table<AssetHolding> size="small" pagination={false} rowKey="id"
                 dataSource={current} style={{ marginTop: 12 }} columns={[
-                  { title: '标的名称', dataIndex: 'name', render: (name: string) =>
-                    <Text style={{ overflowWrap: 'anywhere' }}>{name}</Text> },
+                  { title: '标的名称 / 行业', dataIndex: 'name', render: (name: string, item) =>
+                    <div style={{ overflowWrap: 'anywhere' }}><Text>{name}</Text>
+                      <div><Text type="secondary" style={{ fontSize: 12 }}>{sectorLabel(item.sector)}</Text></div>
+                    </div> },
                   { title: '类内占比', dataIndex: 'percentage', width: 96, align: 'right',
                     render: (value: number) => <Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatPercentage(value)}</Text> },
                 ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={examples(category.name)}>
@@ -117,13 +119,13 @@ export default function Holdings() {
     <Modal title={editing ? `管理${groupTitle(editing.name)}` : '管理持仓'} open={!!editing}
       onOk={() => void save()} onCancel={() => setEditing(null)} confirmLoading={saving}
       cancelButtonProps={{ disabled: saving }} closable={!saving} mask={{ closable: !saving }}
-      okText="保存持仓" cancelText="取消" width={640}>
-      <Text type="secondary">填写标的名称和占所属类别的比例，支持分批登记；移除一行后保存即可删除该持仓。</Text>
+      okText="保存持仓" cancelText="取消" width={760}>
+      <Text type="secondary">填写标的、行业和占所属类别的比例。行业可留空，AI 会把缺失部分视为未知；基金行业标签不代表成分穿透。</Text>
       <Form form={form} layout="vertical" style={{ marginTop: 20 }} disabled={saving}>
         <Form.List name="items" rules={[{ validator: async (_, value) => { validateHoldings(value ?? []); } }]}>
           {(fields, { add, remove }, { errors }) => <>
             {fields.map(field => <Row key={field.key} gutter={8} align="top">
-              <Col xs={24} sm={14}>
+              <Col xs={24} sm={10}>
                 <Form.Item name={[field.name, 'name']} label="标的名称" rules={[
                   { required: true, whitespace: true, message: '请输入标的名称' },
                   { max: 80, message: '名称最多80个字符' },
@@ -131,7 +133,12 @@ export default function Holdings() {
                   <Input maxLength={80} placeholder={editing ? examples(editing.name) : '标的名称'} />
                 </Form.Item>
               </Col>
-              <Col xs={20} sm={8}>
+              <Col xs={14} sm={7}>
+                <Form.Item name={[field.name, 'sector']} label="行业（可选）">
+                  <Select allowClear showSearch={{ optionFilterProp: 'label' }} options={SECTOR_OPTIONS} placeholder="未标注" />
+                </Form.Item>
+              </Col>
+              <Col xs={8} sm={5}>
                 <Form.Item name={[field.name, 'percentage']} label="类内占比" rules={[
                   { required: true, message: '请输入占比' },
                   { type: 'number', min: 0.01, max: 100, message: '占比范围为0.01%至100%' },
@@ -139,7 +146,7 @@ export default function Holdings() {
                   <InputNumber min={0.01} max={100} step={1} precision={2} suffix="%" style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col xs={4} sm={2}>
+              <Col xs={2} sm={2}>
                 <Button danger type="text" icon={<DeleteOutlined />} aria-label={`删除第${field.name + 1}项持仓`}
                   style={{ marginTop: 30 }} onClick={() => remove(field.name)} />
               </Col>

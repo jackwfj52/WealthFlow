@@ -19,6 +19,7 @@ class KnowledgeAgentTest {
     private KnowledgeSearchService search;
     private BatchSnapshotActionService actions;
     private ToolAgentChatService agent;
+    private final String portfolioTool = "{\"kind\":\"tool\",\"tool\":\"query_portfolio\",\"arguments\":{}}";
     private final KnowledgeDtos.Source source=new KnowledgeDtos.Source("7","doc","长期定投","STRATEGY",1,
             "2026-10-14","投资原则","按明确现金流条件执行。",1,"ACTIVE");
     @BeforeEach void setup() {
@@ -31,20 +32,23 @@ class KnowledgeAgentTest {
         when(search.search(any())).thenReturn(new KnowledgeDtos.SearchResult(List.of(source),"KEYWORD",null));
         when(search.current(any())).thenReturn(true);
         actions=mock(BatchSnapshotActionService.class);
+        var portfolio=mock(PortfolioQueryService.class);
+        when(portfolio.query(any())).thenReturn(new org.jack.wealthflow.dto.PortfolioContext("p1", "now", null, null,
+                null, List.of(), List.of(), null, null, List.of("暂无数据")));
         agent=new ToolAgentChatService(providers,gateway,categories,mock(SnapshotQueryService.class),actions,
                 mock(AiSnapshotSimulationService.class),permissions,mock(PendingActionService.class),new ObjectMapper(),search,
-                mock(org.jack.wealthflow.news.FinancialNewsService.class));
+                mock(org.jack.wealthflow.news.FinancialNewsService.class), portfolio);
     }
     @Test void decisionReadsStrategiesAndPersistsValidatedSources() {
         when(gateway.complete(anyString(),anyString(),anyString(),anyString(),anyList()))
-                .thenReturn("{\"kind\":\"answer\",\"reply\":\"根据现金流条件核对策略[知识:7]。\"}");
+                .thenReturn(portfolioTool, "{\"kind\":\"answer\",\"reply\":\"持仓数据尚不完整[持仓:p1]，根据现金流条件核对策略[知识:7]。\"}");
         var answer=agent.chat(new AgentChatRequest("p","按照策略我该如何投资？",List.of()));
         assertEquals(List.of(source),answer.sources());
         verify(search).search(argThat(request->"STRATEGY".equals(request.type())));
     }
     @Test void fabricatedCitationIsRejected() {
         when(gateway.complete(anyString(),anyString(),anyString(),anyString(),anyList()))
-                .thenReturn("{\"kind\":\"answer\",\"reply\":\"策略要求[知识:999]。\"}");
+                .thenReturn(portfolioTool, "{\"kind\":\"answer\",\"reply\":\"持仓依据[持仓:p1]，策略要求[知识:999]。\"}");
         var answer=agent.chat(new AgentChatRequest("p","我应该继续定投吗？",List.of()));
         assertTrue(answer.sources().isEmpty());
         assertTrue(answer.reply().contains("可核对"));

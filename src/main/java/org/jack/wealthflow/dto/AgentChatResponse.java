@@ -16,12 +16,21 @@ public record AgentChatResponse(
         java.util.List<String> steps,
         PendingActionExecutionResponse execution,
         java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources,
-        java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources
+        java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources,
+        PortfolioContext portfolioContext
 ) {
     public AgentChatResponse {
         steps = steps == null ? java.util.List.of() : java.util.List.copyOf(steps);
         sources = sources == null ? java.util.List.of() : java.util.List.copyOf(sources);
         newsSources = newsSources == null ? java.util.List.of() : java.util.List.copyOf(newsSources);
+    }
+    public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
+                             DeleteSnapshotDraftResponse deleteDraft, String draftError,
+                             BatchSnapshotDraft batchDraft, java.util.List<String> steps,
+                             PendingActionExecutionResponse execution,
+                             java.util.List<org.jack.wealthflow.knowledge.KnowledgeDtos.Source> sources,
+                             java.util.List<org.jack.wealthflow.news.FinancialNewsDtos.Article> newsSources) {
+        this(reply, draft, deleteDraft, draftError, batchDraft, steps, execution, sources, newsSources, null);
     }
     public AgentChatResponse(String reply, CreateSnapshotDraftResponse draft,
                              DeleteSnapshotDraftResponse deleteDraft, String draftError,

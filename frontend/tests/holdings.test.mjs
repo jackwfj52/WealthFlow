@@ -29,3 +29,15 @@ test('含持仓的新版备份可往返，旧版仍可解析，无效持仓阻�
   assert.equal(parseBackupJson(JSON.stringify(invalid)).ok, false);
   assert.equal(parseBackupJson(JSON.stringify({ version: 1, categories: [{ name: '基金' }], snapshots: [] })).ok, true);
 });
+
+test('行业标签可选且随新版备份保留，不根据标的名称猜行业', () => {
+  assert.deepEqual(validateHoldings([{ name: '英伟达', percentage: 60 }]), [{ name: '英伟达', percentage: 60 }]);
+  const holdings = [{ name: '英伟达', percentage: 60, sector: 'TECH' }];
+  assert.deepEqual(validateHoldings(holdings), holdings);
+  assert.throws(() => validateHoldings([{ ...holdings[0], sector: 'invalid' }]));
+  const exported = buildBackupJson([{ name: '股票', holdings }], []);
+  const parsed = parseBackupJson(exported);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.backup.version, 3);
+  assert.deepEqual(parsed.backup.categories[0].holdings, holdings);
+});

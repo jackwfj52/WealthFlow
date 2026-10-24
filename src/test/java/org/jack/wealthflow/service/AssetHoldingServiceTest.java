@@ -47,6 +47,15 @@ class AssetHoldingServiceTest {
     HoldingRequest.Item item(String name, String percent) { return new HoldingRequest.Item(name, new BigDecimal(percent)); }
     HoldingRequest request(HoldingRequest.Item... items) { return new HoldingRequest(List.of(items)); }
 
+    @Test void optionalIndustryTagsPersistAndInvalidTagsCannotReplaceHoldings() {
+        service.replace(funds, request(new HoldingRequest.Item("纳斯达克", new BigDecimal("60"), "MIXED")));
+        assertEquals("MIXED", service.findAll().get(0).sector());
+        assertNotNull(service.findAll().get(0).updatedAt());
+        assertThrows(BusinessException.class, () -> service.replace(funds,
+                request(new HoldingRequest.Item("纳斯达克", new BigDecimal("60"), "invented"))));
+        assertEquals("MIXED", service.findAll().get(0).sector());
+    }
+
     @Test void apiPersistsExactPercentagesAndEditsOneCategoryOnly() throws Exception {
         mvc.perform(put("/api/v1/holdings/" + funds).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"items\":[{\"name\":\"纳斯达克\",\"percentage\":33.33},{\"name\":\"标普500\",\"percentage\":66.67}]}"))

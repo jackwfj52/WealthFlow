@@ -283,7 +283,8 @@ export function buildBackupJson(
 ): string {
   const backup: BackupFile = {
     type: 'wealthflow-backup',
-    version: categories.some(category => category.holdings !== undefined) ? 2 : 1,
+    version: categories.some(category => category.holdings?.some(item => item.sector)) ? 3
+      : categories.some(category => category.holdings !== undefined) ? 2 : 1,
     exportedAt: new Date().toISOString(),
     categories: categories.map((c) => ({ name: c.name, ...(c.color ? { color: c.color } : {}),
       ...(c.holdings !== undefined ? { holdings: c.holdings } : {}) })),
@@ -317,7 +318,7 @@ export function parseBackupJson(text: string): BackupParseResult {
   if (typeof e.type === 'string' && e.type !== 'wealthflow-backup') {
     return { ok: false, error: '不是有效的 WealthFlow 备份文件' };
   }
-  if (e.version !== undefined && e.version !== 1 && e.version !== 2) {
+  if (e.version !== undefined && e.version !== 1 && e.version !== 2 && e.version !== 3) {
     return { ok: false, error: '不支持的资产备份版本' };
   }
   if (e.categories !== undefined && !Array.isArray(e.categories)) {
