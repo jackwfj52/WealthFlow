@@ -16,9 +16,9 @@ import { formatPercentage, totalPercentage, validateHoldings, SECTOR_OPTIONS, se
 import './index.css';
 
 const { Text } = Typography;
-const groupTitle = (name: string) => name === '理财' ? '贵金属持仓' : `${name}持仓`;
+const groupTitle = (name: string) => `${name}持仓`;
 const examples = (name: string) => ({
-  基金: '例如：纳斯达克100指数基金', 股票: '例如：英伟达', 理财: '例如：黄金、白银',
+  基金: '例如：纳斯达克100指数基金', 股票: '例如：英伟达', 理财: '例如：银行理财产品',
   贵金属: '例如：黄金、白银', 加密货币: '例如：BTC、ETH',
 }[name] ?? '请输入具体标的名称');
 

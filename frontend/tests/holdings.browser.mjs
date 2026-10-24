@@ -12,14 +12,14 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  const categories = ['基金', '股票', '理财', '加密货币'].map((name, index) => ({
-    id: String(index + 1), name, color: ['#1677ff', '#52c41a', '#faad14', '#722ed1'][index], createdAt: '2026-10-24',
+  const categories = ['基金', '股票', '理财', '加密货币', '贵金属', '现金'].map((name, index) => ({
+    id: String(index + 1), name, color: ['#1677ff', '#52c41a', '#13c2c2', '#722ed1', '#faad14', '#fa8c16'][index], createdAt: '2026-10-24',
   }));
   let holdings = [
     { id: 'a', categoryId: '1', name: '纳斯达克', percentage: 60 },
     { id: 'b', categoryId: '1', name: '标普500', percentage: 30 },
     { id: 'c', categoryId: '2', name: '英伟达', percentage: 40 },
-    { id: 'd', categoryId: '3', name: '黄金', percentage: 70 },
+    { id: 'd', categoryId: '5', name: '黄金', percentage: 70 },
     { id: 'e', categoryId: '4', name: 'BTC', percentage: 80 },
   ];
   let saves = 0;
@@ -42,6 +42,19 @@ try {
   assert.equal(await page.getByRole('menuitem', { name: '具体持仓' }).count(), 1);
   const card = title => page.locator('.ant-card').filter({ has: page.locator('.ant-card-head-title').getByText(title, { exact: true }) });
   const dialog = page.getByRole('dialog');
+  for (const category of categories) {
+    assert.equal(await card(`${category.name}持仓`).count(), 1, `${category.name}应使用自己的类别名称`);
+    assert.equal(await card(`${category.name}持仓`).locator('.ant-tag').textContent(), category.name);
+  }
+  await card('理财持仓').getByText('例如：银行理财产品', { exact: true }).waitFor();
+  assert.equal(await card('理财持仓').getByText('黄金', { exact: true }).count(), 0);
+  await card('贵金属持仓').getByText('黄金', { exact: true }).waitFor();
+  await card('理财持仓').getByRole('button', { name: '添加持仓', exact: true }).click();
+  await dialog.getByText('管理理财持仓', { exact: true }).waitFor();
+  await dialog.getByPlaceholder('例如：银行理财产品').waitFor();
+  await dialog.getByRole('button', { name: /取\s*消/ }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(saves, 0);
   await card('基金持仓').getByRole('button', { name: '管理持仓' }).click();
   await dialog.getByRole('combobox').nth(0).click();
   await dialog.getByRole('combobox').nth(0).fill('混合');
@@ -85,17 +98,20 @@ try {
     await page.setViewportSize({ width: 1440, height: 1100 });
   }
   await card('贵金属持仓').getByRole('button', { name: '管理持仓' }).click();
+  await dialog.getByText('管理贵金属持仓', { exact: true }).waitFor();
   await dialog.getByRole('button', { name: '删除第1项持仓' }).click();
   await dialog.getByText('保存后将清空该类别的具体持仓。').waitFor();
   await dialog.getByRole('button', { name: '保存持仓' }).click();
   await dialog.waitFor({ state: 'hidden' });
-  assert.equal(holdings.filter(item => item.categoryId === '3').length, 0);
+  assert.equal(holdings.filter(item => item.categoryId === '5').length, 0);
+  await card('贵金属持仓').getByText('例如：黄金、白银', { exact: true }).waitFor();
   await card('贵金属持仓').getByRole('button', { name: '添加持仓', exact: true }).click();
   await dialog.getByRole('textbox').fill('白银');
   await dialog.getByRole('spinbutton').fill('25');
   await dialog.getByRole('button', { name: '保存持仓' }).click();
   await dialog.waitFor({ state: 'hidden' });
-  assert.equal(holdings.find(item => item.categoryId === '3').name, '白银');
+  assert.equal(holdings.find(item => item.categoryId === '5').name, '白银');
+  assert.equal(holdings.filter(item => item.categoryId === '3').length, 0);
   assert.deepEqual(errors, []);
-  console.log('持仓浏览器检查通过：菜单、分组、保存重载、删除、超额与重名校验、深浅主题、窄屏布局、清空。');
+  console.log('持仓浏览器检查通过：六类标题与分类一致、理财和贵金属独立显示及编辑、菜单、保存重载、删除、超额与重名校验、深浅主题、窄屏布局、清空。');
 } finally { await browser?.close(); await server.close(); }
