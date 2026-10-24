@@ -1,0 +1,2 @@
+deploy/*.sh text eol=lf
+deploy/*.Dockerfile text eol=lf

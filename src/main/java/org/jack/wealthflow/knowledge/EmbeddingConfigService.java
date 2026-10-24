@@ -3,7 +3,7 @@ package org.jack.wealthflow.knowledge;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.exception.ErrorCode;
 import org.jack.wealthflow.service.AiProviderConfigService;
-import org.jack.wealthflow.service.WindowsDpapiSecretProtector;
+import org.jack.wealthflow.service.SecretProtector;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,11 +22,11 @@ import java.util.Objects;
 public class EmbeddingConfigService {
     private final JdbcTemplate jdbc;
     private final AiProviderConfigService providers;
-    private final WindowsDpapiSecretProtector secretProtector;
+    private final SecretProtector secretProtector;
     private final EmbeddingGateway gateway;
 
     public EmbeddingConfigService(JdbcTemplate jdbc, AiProviderConfigService providers,
-                                  WindowsDpapiSecretProtector secretProtector, EmbeddingGateway gateway) {
+                                  SecretProtector secretProtector, EmbeddingGateway gateway) {
         this.jdbc = jdbc;
         this.providers = providers;
         this.secretProtector = secretProtector;

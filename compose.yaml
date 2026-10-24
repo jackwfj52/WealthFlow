@@ -1,0 +1,63 @@
+name: wealthflow
+services:
+  backend:
+    image: wealthflow-backend:local
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:sqlite:/app/data/wealthflow.db
+      WEALTHFLOW_SECURITY_SECRET_PROTECTION: aes-gcm
+      WEALTHFLOW_SECURITY_MASTER_KEY_FILE: /run/secrets/master_key
+      WEALTHFLOW_NEWS_PYTHON: /usr/local/bin/python
+      WEALTHFLOW_NEWS_SCRIPT: /app/tools/finance/news.py
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=50.0 -XX:+ExitOnOutOfMemoryError
+      TZ: Asia/Taipei
+    secrets:
+      - master_key
+    volumes:
+      - wealthflow_data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 1536m
+    cpus: 2.0
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  frontend:
+    image: wealthflow-frontend:local
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEALTHFLOW_HTTP_PORT:-18000}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    init: true
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+secrets:
+  master_key:
+    file: ./.wealthflow/docker/master-key.txt
+volumes:
+  wealthflow_data:

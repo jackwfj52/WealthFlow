@@ -6,6 +6,7 @@ import org.jack.wealthflow.constant.MessageConstant;
 import org.jack.wealthflow.exception.BusinessException;
 import org.jack.wealthflow.exception.ErrorCode;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -18,7 +19,8 @@ import java.util.Base64;
  * 本类不记录任何日志，明文与密文均不会进入日志或异常消息。</p>
  */
 @Component
-public class WindowsDpapiSecretProtector {
+@ConditionalOnProperty(name = "wealthflow.security.secret-protection", havingValue = "dpapi", matchIfMissing = true)
+public class WindowsDpapiSecretProtector implements SecretProtector {
 
     public String encrypt(String plaintext) {
         try {

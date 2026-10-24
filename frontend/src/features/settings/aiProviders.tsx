@@ -400,7 +400,7 @@ const AiProviderSettings: React.FC = () => {
         }
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          API Key 使用 Windows DPAPI 加密后保存在本地数据库，任何接口都不会
+          API Key 加密后保存在服务端数据库，任何接口都不会
           返回完整 Key，仅显示掩码。内置 OpenAI 示例，其他兼容 OpenAI 协议的
           提供商请通过「新增自定义配置」添加。
         </Typography.Paragraph>

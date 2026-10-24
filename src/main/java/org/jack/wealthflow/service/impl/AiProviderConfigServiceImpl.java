@@ -10,7 +10,7 @@ import org.jack.wealthflow.exception.ErrorCode;
 import org.jack.wealthflow.mapper.AiProviderConfigMapper;
 import org.jack.wealthflow.model.AiProviderConfig;
 import org.jack.wealthflow.service.AiProviderConfigService;
-import org.jack.wealthflow.service.WindowsDpapiSecretProtector;
+import org.jack.wealthflow.service.SecretProtector;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -35,7 +35,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
             .build();
 
     private final AiProviderConfigMapper aiProviderConfigMapper;
-    private final WindowsDpapiSecretProtector secretProtector;
+    private final SecretProtector secretProtector;
 
     @Override
     public List<AiProviderConfigResponse> findAll() {

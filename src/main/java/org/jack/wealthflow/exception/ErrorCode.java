@@ -26,6 +26,8 @@ public enum ErrorCode {
     DPAPI_UNAVAILABLE(50002, 500, "Windows 密钥保护不可用，无法安全保存 API Key"),
     DPAPI_ENCRYPT_FAILED(50003, 500, "API Key 加密失败，配置未保存"),
     DPAPI_DECRYPT_FAILED(50004, 500, "API Key 解密失败，无法读取该配置"),
+    SECRET_ENCRYPT_FAILED(50005, 500, "API Key 加密失败，配置未保存"),
+    SECRET_DECRYPT_FAILED(50006, 500, "API Key 无法解密，请核对原主密钥；跨环境迁移请恢复完整备份后重新填写 Key"),
 
     AI_MODEL_AUTH_FAILED(50010, 502, "模型服务认证失败，请检查 API Key"),
     AI_MODEL_CALL_FAILED(50011, 502, "模型服务调用失败"),

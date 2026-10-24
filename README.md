@@ -2,6 +2,32 @@
 
 本地个人资产管理应用：资产分类与快照、具体持仓及行业标签、趋势分析、投资知识库、AI 助手。前端为 React / Ant Design，后端为 Java 17 / Spring Boot，数据存储在 SQLite；财经讯息工具使用 Python / AKShare。
 
+## Docker 启动（推荐用于换机与演示）
+
+先安装并启动 Docker Desktop，使用 Linux containers 模式。在项目根目录执行：
+
+```powershell
+# 仅首次需要：生成容器加密主密钥；重复运行不会更换已有密钥
+./deploy/init-secrets.ps1
+
+# 构建并等待前后端健康后启动
+docker compose up -d --build --wait
+```
+
+打开 **http://127.0.0.1:18000**。首次启动需要联网下载镜像、Java/npm/Python 依赖；宿主机无需安装 Java、Node 或 Python。后续可用 `docker compose up -d --wait` 启动，更新代码后再加 `--build`。
+
+Linux/macOS 先运行 `sh deploy/init-secrets.sh`（初始化需 OpenSSL），然后使用相同的 Compose 命令。启动、停止、迁移和架构说明见 [Docker 部署说明](DOCKER.md)。
+
+```powershell
+docker compose ps             # 查看健康状态
+docker compose logs -f        # 查看日志
+docker compose down           # 停止服务，保留数据库卷
+```
+
+容器数据库与项目根目录的 `wealthflow.db` 相互独立。迁移现有数据时，在原应用导出完整 JSON 备份，到容器版“设置”中恢复，并重新填写 API Key；原 Windows DPAPI 密文不能直接用于 Linux 容器。
+
+主密钥位于 `.wealthflow/docker/master-key.txt`，已被 Git 和 Docker 构建上下文排除。保留该文件与数据库卷的对应关系，丢失后无法解密已保存的模型 Key。
+
 ## Windows 启动
 
 安装 JDK 17 或以上、Node.js 22.12 或以上、Python 3.11 或以上（推荐 3.12），以及 Git。设置 `JAVA_HOME` 为 JDK 目录。项目自带 Maven Wrapper，无需另装 Maven。
