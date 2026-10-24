@@ -5,6 +5,7 @@ import { Spin } from 'antd';
 const Dashboard = lazy(() => import('../features/dashboard'));
 const Snapshots = lazy(() => import('../features/snapshots'));
 const Categories = lazy(() => import('../features/categories'));
+const Holdings = lazy(() => import('../features/holdings'));
 const Trends = lazy(() => import('../features/trends'));
 const Agent = lazy(() => import('../features/agent'));
 const Knowledge = lazy(() => import('../features/knowledge'));
@@ -21,6 +22,7 @@ const AppRouter: React.FC = () => (
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/snapshots" element={<Snapshots />} />
       <Route path="/categories" element={<Categories />} />
+      <Route path="/holdings" element={<Holdings />} />
       <Route path="/trends" element={<Trends />} />
       <Route path="/agent" element={<Agent />} />
       <Route path="/knowledge" element={<Knowledge />} />

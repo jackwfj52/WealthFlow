@@ -44,4 +44,6 @@ Thumbs.db
 *.log
 node_modules
 frontend/dist/
+.venv-finance/
+__pycache__/
 docs/

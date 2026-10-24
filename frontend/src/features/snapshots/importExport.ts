@@ -19,10 +19,11 @@
  * - 分类按名称匹配，不存在则自动创建
  * - 数据库中已存在的日期整条跳过（不覆盖历史快照）
  */
-import type { AssetSnapshot, SnapshotItem } from '../../types/domain';
+import type { AssetSnapshot, SnapshotItem, HoldingInput } from '../../types/domain';
 import { isValidDateOnly } from '../../utils/date';
 import { isValidAmount } from '../../utils/amount';
 import { isValidHexColor } from '../../utils/color';
+import { validateHoldings } from '../../utils/holdings';
 import type { CategoryService, SnapshotService, SystemService } from '../../services/types';
 
 export interface ImportedItem {
@@ -252,6 +253,7 @@ export async function runImport(
 export interface BackupCategory {
   name: string;
   color?: string;
+  holdings?: HoldingInput[];
 }
 
 export interface BackupFile {
@@ -276,16 +278,15 @@ export interface BackupRestoreReport {
 
 /** 生成全量备份 JSON（分类 + 快照），快照按日期升序 */
 export function buildBackupJson(
-  categories: { name: string; color?: string }[],
+  categories: BackupCategory[],
   snapshots: AssetSnapshot[]
 ): string {
   const backup: BackupFile = {
     type: 'wealthflow-backup',
-    version: 1,
+    version: categories.some(category => category.holdings !== undefined) ? 2 : 1,
     exportedAt: new Date().toISOString(),
-    categories: categories.map((c) =>
-      c.color ? { name: c.name, color: c.color } : { name: c.name }
-    ),
+    categories: categories.map((c) => ({ name: c.name, ...(c.color ? { color: c.color } : {}),
+      ...(c.holdings !== undefined ? { holdings: c.holdings } : {}) })),
     snapshots: [...snapshots]
       .sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))
       .map((s) => ({
@@ -316,7 +317,7 @@ export function parseBackupJson(text: string): BackupParseResult {
   if (typeof e.type === 'string' && e.type !== 'wealthflow-backup') {
     return { ok: false, error: '不是有效的 WealthFlow 备份文件' };
   }
-  if (e.version !== undefined && e.version !== 1) {
+  if (e.version !== undefined && e.version !== 1 && e.version !== 2) {
     return { ok: false, error: '不支持的资产备份版本' };
   }
   if (e.categories !== undefined && !Array.isArray(e.categories)) {
@@ -345,9 +346,15 @@ export function parseBackupJson(text: string): BackupParseResult {
       typeof rawColor === 'string' && isValidHexColor(rawColor.trim())
         ? rawColor.trim().toLowerCase()
         : undefined;
-    if (name && !categories.some((c) => c.name === name)) {
-      categories.push(color ? { name, color } : { name });
+    if (categories.some(category => category.name === name)) {
+      return { ok: false, error: `备份分类名称重复：${name}` };
     }
+    let holdings: HoldingInput[] | undefined;
+    if (obj?.holdings !== undefined) {
+      try { holdings = validateHoldings(obj.holdings); }
+      catch (err) { return { ok: false, error: `分类“${name}”的持仓无效：${(err as Error).message}` }; }
+    }
+    categories.push({ name, ...(color ? { color } : {}), ...(holdings !== undefined ? { holdings } : {}) });
   }
 
   let report: ParseReport;

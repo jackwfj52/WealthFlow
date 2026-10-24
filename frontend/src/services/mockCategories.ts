@@ -155,6 +155,8 @@ export const categoryService: CategoryService = {
     const categories = read();
     const filtered = categories.filter((c) => c.id !== id);
     if (filtered.length === categories.length) return false;
+    const holdings = JSON.parse(localStorage.getItem('wealthflow_holdings') ?? '[]') as { categoryId: string }[];
+    if (holdings.some(item => item.categoryId === id)) throw new Error('资产分类下存在具体持仓，请先清空持仓再删除');
     write(filtered);
     return true;
   },

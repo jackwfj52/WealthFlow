@@ -31,7 +31,7 @@ import PageHeader from '../../components/PageHeader';
 import { useCategories, useSnapshots } from '../../app/storage';
 import { useSettings, type ThemeMode, type RateBand, type SnapshotDateOrder } from '../../app/settings';
 import { SEED_CATEGORIES, SEED_SNAPSHOTS } from '../../services/mockData';
-import { USE_MOCK, categoryService, snapshotService, systemService } from '../../services';
+import { USE_MOCK, categoryService, snapshotService, systemService, holdingService } from '../../services';
 import type { SystemInfo } from '../../services/types';
 import {
   buildBackupJson,
@@ -100,18 +100,17 @@ const Settings: React.FC = () => {
   const [restoring, setRestoring] = useState(false);
 
   const handleExportAll = useCallback(async () => {
-    const [categories, snapshots] = await Promise.all([
-      categoryService.getAll(),
-      snapshotService.getAll(),
-    ]);
-    const json = buildBackupJson(categories, snapshots);
-    downloadTextFile(
-      `wealthflow-backup-${dayjs().format('YYYY-MM-DD')}.json`,
-      json
-    );
-    message.success(
-      `已导出 ${categories.length} 个分类、${snapshots.length} 条快照`
-    );
+    try {
+      const [categories, snapshots, holdings] = await Promise.all([
+        categoryService.getAll(), snapshotService.getAll(), holdingService.getAll(),
+      ]);
+      const json = buildBackupJson(categories.map(category => ({ ...category,
+        holdings: holdings.filter(item => item.categoryId === category.id)
+          .map(({ name, percentage }) => ({ name, percentage })),
+      })), snapshots);
+      downloadTextFile(`wealthflow-backup-${dayjs().format('YYYY-MM-DD')}.json`, json);
+      message.success(`已导出 ${categories.length} 个分类、${snapshots.length} 条快照、${holdings.length} 项持仓`);
+    } catch (err) { message.error(err instanceof Error ? err.message : '备份导出失败'); }
   }, []);
 
   const handleBackupFileChange = useCallback(
@@ -384,7 +383,7 @@ const Settings: React.FC = () => {
         {USE_MOCK ? (
           <>
             <Typography.Paragraph type="secondary">
-              当前分类与快照存储在浏览器 localStorage 中。清空资产数据不可恢复，建议先导出备份。
+              当前分类、快照与具体持仓存储在浏览器 localStorage 中。清空资产数据不可恢复，建议先导出备份。
             </Typography.Paragraph>
 
             <Space direction="vertical" style={{ width: '100%' }}>
@@ -398,7 +397,7 @@ const Settings: React.FC = () => {
 
               <Popconfirm
                 title="确认清空资产数据？"
-                description="此操作将删除所有分类和快照数据，且不可恢复。"
+                description="此操作将删除所有分类、快照和具体持仓，且不可恢复。"
                 onConfirm={handleClearAll}
                 okText="确认清空"
                 cancelText="取消"
@@ -413,16 +412,16 @@ const Settings: React.FC = () => {
         ) : (
           <>
             <Typography.Paragraph type="secondary">
-              当前为真实 API 模式，数据存储在服务端数据库中。清空将删除所有分类与快照数据，不可恢复，建议先导出备份。
+              当前为真实 API 模式，数据存储在服务端数据库中。清空将删除所有分类、快照与具体持仓，不可恢复，建议先导出备份。
             </Typography.Paragraph>
 
             <Popconfirm
               title="确认清空资产数据？"
-              description="此操作将删除服务端数据库中的所有分类和快照数据。"
+              description="此操作将删除服务端数据库中的所有分类、快照和具体持仓。"
               onConfirm={() => {
                 Modal.confirm({
-                  title: '再次确认：清空分类与快照？',
-                  content: '分类与快照将被永久删除且无法恢复，请确认已做好备份。',
+                  title: '再次确认：清空资产数据？',
+                  content: '分类、快照和具体持仓将被永久删除且无法恢复，请确认已做好备份。',
                   okText: '确认清空',
                   cancelText: '取消',
                   okButtonProps: { danger: true },
@@ -449,7 +448,7 @@ const Settings: React.FC = () => {
 
       <Card title="资产数据备份与恢复" style={{ maxWidth: 600, marginBottom: 16 }}>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          导出分类与快照为 JSON 资产备份文件；导入时可选合并或覆盖模式。
+          导出分类、快照与具体持仓为 JSON 资产备份文件；导入时可选合并或覆盖模式。
         </Typography.Paragraph>
         <Space>
           <Button
@@ -528,7 +527,8 @@ const Settings: React.FC = () => {
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               备份包含 {restorePending.backup.categories.length} 个分类、
-              {restorePending.valid.length} 条有效快照
+              {restorePending.valid.length} 条有效快照、
+              {restorePending.backup.categories.reduce((sum, category) => sum + (category.holdings?.length ?? 0), 0)} 项具体持仓
               {restorePending.skipped.length > 0
                 ? `，另有 ${restorePending.skipped.length} 条快照因格式问题被跳过`
                 : ''}。
@@ -541,10 +541,10 @@ const Settings: React.FC = () => {
             >
               <Space direction="vertical">
                 <Radio value="merge">
-                  合并：保留现有数据，已存在的快照日期跳过
+                  合并：保留现有快照及已登记的类别持仓，补充缺失数据
                 </Radio>
                 <Radio value="overwrite">
-                  覆盖：清空现有分类与快照后导入资产备份
+                  覆盖：清空现有分类、快照和持仓后导入资产备份
                 </Radio>
               </Space>
             </Radio.Group>
@@ -552,7 +552,7 @@ const Settings: React.FC = () => {
               <Alert
                 type="warning"
                 showIcon
-                message="覆盖模式将删除当前所有分类与快照数据，且不可恢复"
+                message="覆盖模式将删除当前所有分类、快照和具体持仓，且不可恢复"
               />
             )}
           </Space>

@@ -67,6 +67,14 @@
         SELECT COUNT(*) FROM asset_category
     </select>
 
+    <select id="countHoldingsByCategoryId" resultType="int">
+        SELECT COUNT(*) FROM asset_holding WHERE category_id = #{categoryId}
+    </select>
+
+    <delete id="deleteAllHoldings">
+        DELETE FROM asset_holding
+    </delete>
+
     <delete id="deleteAll">
         DELETE FROM asset_category
     </delete>

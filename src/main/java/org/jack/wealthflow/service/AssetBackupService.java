@@ -21,6 +21,7 @@ public class AssetBackupService {
     private final AssetSnapshotService snapshots;
     private final SystemService system;
     private final TransactionTemplate transactions;
+    private final AssetHoldingService holdings;
 
     public AssetBackupRestoreResponse restore(AssetBackupRestoreRequest input) {
         AssetBackupRestoreRequest request = validate(input);
@@ -29,7 +30,17 @@ public class AssetBackupService {
             Map<String, Long> ids = new HashMap<>();
             categories.findAll().forEach(category -> ids.put(category.getName(), category.getId()));
             int initialCategories = ids.size();
-            for (var category : request.categories()) addCategory(ids, category.name(), category.color());
+            Set<String> occupiedHoldingCategories = new HashSet<>();
+            holdings.findAll().forEach(holding -> occupiedHoldingCategories.add(holding.categoryId()));
+            for (var category : request.categories()) {
+                boolean existed = ids.containsKey(category.name());
+                addCategory(ids, category.name(), category.color());
+                // 合并模式保留已有类别的持仓，空类别或新类别可恢复；覆盖模式完整恢复。
+                Long categoryId = ids.get(category.name());
+                boolean hasHoldings = occupiedHoldingCategories.contains(categoryId.toString());
+                if (category.holdings() != null && (!existed || !hasHoldings || request.mode().equals("overwrite")))
+                    holdings.replace(categoryId, new org.jack.wealthflow.dto.HoldingRequest(category.holdings()));
+            }
             Set<LocalDate> dates = new HashSet<>();
             snapshots.findAll().forEach(snapshot -> dates.add(snapshot.getSnapshotDate()));
             int created = 0;
@@ -77,7 +88,8 @@ public class AssetBackupService {
                 color = color.trim();
                 if (!color.matches("#[0-9a-fA-F]{6}")) throw invalid("备份分类颜色无效");
             } else color = null;
-            normalizedCategories.add(new AssetBackupRestoreRequest.Category(name, color));
+            var normalizedHoldings = category.holdings() == null ? null : AssetHoldingService.validate(category.holdings());
+            normalizedCategories.add(new AssetBackupRestoreRequest.Category(name, color, normalizedHoldings));
         }
         List<AssetBackupRestoreRequest.Snapshot> normalizedSnapshots = new ArrayList<>();
         Set<LocalDate> dates = new HashSet<>();

@@ -13,6 +13,16 @@ CREATE TABLE IF NOT EXISTS asset_snapshot (
     FOREIGN KEY (category_id) REFERENCES asset_category(id)
 );
 
+CREATE TABLE IF NOT EXISTS asset_holding (
+    id TEXT PRIMARY KEY,
+    category_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    weight_bps INTEGER NOT NULL CHECK (weight_bps > 0 AND weight_bps <= 10000),
+    position INTEGER NOT NULL,
+    UNIQUE (category_id, name COLLATE NOCASE),
+    FOREIGN KEY (category_id) REFERENCES asset_category(id)
+);
+
 CREATE TABLE IF NOT EXISTS pending_action (
     id TEXT PRIMARY KEY,
     action_type TEXT NOT NULL,

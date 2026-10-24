@@ -11,6 +11,7 @@ import { today } from '../utils/date';
 import { sumAmounts } from '../utils/amount';
 import { pickUnusedCategoryColor } from '../utils/color';
 import { parseBackupJson } from '../features/snapshots/importExport';
+import { HOLDINGS_STORAGE_KEY, readMockHoldings } from './mockHoldings';
 
 export const systemService: SystemService = {
   async getInfo(): Promise<SystemInfo> {
@@ -27,6 +28,7 @@ export const systemService: SystemService = {
 
   async clearAll(): Promise<void> {
     await mockSnapshotService.reset([]);
+    localStorage.removeItem(HOLDINGS_STORAGE_KEY);
     await mockCategoryService.reset([]);
   },
 
@@ -36,6 +38,7 @@ export const systemService: SystemService = {
     if (!parsed.ok) throw new Error(parsed.error);
     const categories = request.mode === 'merge' ? await mockCategoryService.getAll() : [];
     const snapshots = request.mode === 'merge' ? await mockSnapshotService.getAll() : [];
+    const holdings = request.mode === 'merge' ? readMockHoldings() : [];
     const initialCategories = categories.length;
     const initialSnapshots = snapshots.length;
     const skipped: AssetBackupRestoreReport['skipped'] = [];
@@ -47,7 +50,12 @@ export const systemService: SystemService = {
       }
       return category;
     };
-    parsed.backup.categories.forEach(category => addCategory(category.name, category.color));
+    parsed.backup.categories.forEach(category => {
+      const target = addCategory(category.name, category.color);
+      if (category.holdings && !holdings.some(item => item.categoryId === target.id)) {
+        holdings.push(...category.holdings.map(item => ({ ...item, id: generateId(), categoryId: target.id })));
+      }
+    });
     for (const entry of parsed.backup.snapshots) {
       if (snapshots.some(snapshot => snapshot.snapshotDate === entry.snapshotDate)) {
         skipped.push({ date: entry.snapshotDate, reason: '数据库中已存在该日期的快照（合并模式不覆盖）' });
@@ -59,12 +67,16 @@ export const systemService: SystemService = {
     }
     // 所有校验与计算完成后写入；第二次写入失败时恢复第一次写入。
     const previousCategories = localStorage.getItem('wealthflow_categories');
+    const previousHoldings = localStorage.getItem(HOLDINGS_STORAGE_KEY);
     localStorage.setItem('wealthflow_categories', JSON.stringify(categories));
     try {
+      localStorage.setItem(HOLDINGS_STORAGE_KEY, JSON.stringify(holdings));
       localStorage.setItem('wealthflow_snapshots', JSON.stringify(snapshots));
     } catch (error) {
       if (previousCategories === null) localStorage.removeItem('wealthflow_categories');
       else localStorage.setItem('wealthflow_categories', previousCategories);
+      if (previousHoldings === null) localStorage.removeItem(HOLDINGS_STORAGE_KEY);
+      else localStorage.setItem(HOLDINGS_STORAGE_KEY, previousHoldings);
       throw error;
     }
     return { createdSnapshots: snapshots.length - initialSnapshots,

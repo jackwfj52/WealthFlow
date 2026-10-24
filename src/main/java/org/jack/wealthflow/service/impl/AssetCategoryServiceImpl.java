@@ -211,6 +211,10 @@ public class AssetCategoryServiceImpl implements AssetCategoryService {
             );
         }
 
+        if (assetCategoryMapper.countHoldingsByCategoryId(id) > 0) {
+            throw new BusinessException(ErrorCode.CATEGORY_HAS_HOLDINGS,
+                    ErrorCode.CATEGORY_HAS_HOLDINGS.getMessage());
+        }
         int rows = assetCategoryMapper.deleteById(id);
         // 验证删除是否成功
         if (rows != 1) {

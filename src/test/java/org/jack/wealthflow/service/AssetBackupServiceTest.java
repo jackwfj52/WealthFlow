@@ -22,7 +22,8 @@ class AssetBackupServiceTest {
     }
     @BeforeEach void setup() throws Exception {
         db = new AssetDatabaseFixture(temporary.resolve("assets.db"));
-        backup = new AssetBackupService(db.categories, db.snapshots, db.system, db.transactions);
+        backup = new AssetBackupService(db.categories, db.snapshots, db.system, db.transactions,
+                new AssetHoldingService(db.jdbc, db.transactions));
         backup.restore(new AssetBackupRestoreRequest("merge", List.of(new Category("现金", "#123456")),
                 List.of(snapshot("2026-01-01", "现金", "123.45"))));
     }
@@ -42,7 +43,8 @@ class AssetBackupServiceTest {
         var failing = spy(db.snapshots);
         doThrow(new IllegalStateException("模拟第二条写入失败")).when(failing)
                 .create(eq(LocalDate.of(2026, 1, 3)), anyList());
-        var service = new AssetBackupService(db.categories, failing, db.system, db.transactions);
+        var service = new AssetBackupService(db.categories, failing, db.system, db.transactions,
+                new AssetHoldingService(db.jdbc, db.transactions));
         assertThrows(IllegalStateException.class, () -> service.restore(new AssetBackupRestoreRequest("overwrite", List.of(),
                 List.of(snapshot("2026-01-02", "股票", "10"), snapshot("2026-01-03", "股票", "20")))));
         assertOriginalAssets();

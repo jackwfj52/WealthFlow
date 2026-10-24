@@ -114,9 +114,13 @@ const Categories: React.FC = () => {
         message.warning(`分类"${name}"已被 ${usage} 条快照使用，无法删除`);
         return;
       }
-      await categoryService.delete(id);
-      message.success('分类已删除');
-      refreshCategories();
+      try {
+        await categoryService.delete(id);
+        message.success('分类已删除');
+        refreshCategories();
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : '分类删除失败');
+      }
     },
     [categoryUsageCount, refreshCategories]
   );

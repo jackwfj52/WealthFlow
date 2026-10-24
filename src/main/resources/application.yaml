@@ -12,6 +12,13 @@ spring:
       # schema.sql 含中文，Windows 平台默认 GBK 会导致种子数据乱码
       encoding: UTF-8
 
+wealthflow:
+  financial-news:
+    # 留空时使用项目内 .venv-finance 的Python；可用环境变量覆盖。
+    python: ${WEALTHFLOW_NEWS_PYTHON:}
+    script: ${WEALTHFLOW_NEWS_SCRIPT:tools/finance/news.py}
+    timeout-seconds: 25
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: org.jack.wealthflow.model

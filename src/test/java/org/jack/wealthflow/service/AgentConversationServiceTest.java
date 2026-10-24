@@ -37,7 +37,9 @@ class AgentConversationServiceTest {
         when(chat.chat(any())).thenAnswer(invocation -> {
             AgentChatRequest request = invocation.getArgument(0);
             requests.add(request);
-            return new AgentChatResponse("回答" + requests.size(), null, null, null);
+            return new AgentChatResponse("回答" + requests.size(), null, null, null, null, List.of(), null, List.of(), List.of(
+                    new org.jack.wealthflow.news.FinancialNewsDtos.Article("0123456789abcdef", "新闻标题", "摘要", "媒体",
+                            "2026-10-24T10:00:00+08:00", "2026-10-24T14:00:00+08:00", "https://finance.eastmoney.com/a/test.html")));
         });
         var service = new AgentConversationService(new JdbcTemplate(dataSource),
                 new TransactionTemplate(new DataSourceTransactionManager(dataSource)),
@@ -53,8 +55,15 @@ class AgentConversationServiceTest {
         assertEquals(4, detail.messages().size());
         assertEquals("第一个问题", detail.conversation().title());
         assertEquals("回答2", detail.messages().get(3).response().reply());
+        assertEquals("新闻标题", detail.messages().get(3).response().newsSources().get(0).title());
         assertEquals("改名", service.rename(id, "改名").title());
         service.delete(id);
         assertTrue(service.list().isEmpty());
+    }
+
+    @Test void oldResponsesWithoutNewsSourcesRemainReadable() throws Exception {
+        var response = new ObjectMapper().readValue("{\"reply\":\"历史回复\",\"steps\":[]}", AgentChatResponse.class);
+        assertTrue(response.newsSources().isEmpty());
+        assertTrue(response.sources().isEmpty());
     }
 }

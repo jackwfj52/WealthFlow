@@ -56,6 +56,10 @@ import { apiAgentPermission, type AiPermissionLevel } from '../../services/apiAg
 import BatchDraftDetails from './BatchDraftDetails';
 import { ApiError } from '../../services/apiClient';
 import type { KnowledgeSource } from '../../services/apiKnowledge';
+import type { FinancialNewsArticle } from '../../services/apiFinancialNews';
+import NewsSources from './NewsSources';
+import { hexToRgba } from '../../utils/color';
+import './index.css';
 
 const { Text, Paragraph } = Typography;
 
@@ -69,6 +73,7 @@ interface ChatMessage {
   loading?: boolean;
   steps?: string[];
   sources?: KnowledgeSource[];
+  newsSources?: FinancialNewsArticle[];
 }
 
 interface DraftEntryFormValues {
@@ -85,10 +90,6 @@ type PendingDraft =
 const SUGGESTIONS = [
   '根据我的生效投资策略，现在的资产配置有哪些需要关注的地方？',
   '查找我的纳指定投策略，并列出继续投入和暂停的条件。',
-  '与一个月前相比，资产配置有什么变化？',
-  '最近90天，哪类资产增加最多，哪类减少最多？',
-  '最近半年最大快照回撤是多少？',
-  '根据现有记录，总结三个最值得关注的变化。',
 ];
 
 function actionStatusClaim(reply: string) {
@@ -107,13 +108,14 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 1,
     role: 'assistant',
     content:
-      '你好，我可以参考知识库中的生效投资策略、复盘和研究资料，结合资产快照分析资产配置与投资决策，并标出资料来源。你也可以查询完整资产历史；数据修改按设置中的 AI 权限处理。',
+      '你好，我可以参考知识库中的生效投资策略、复盘和研究资料，结合资产快照分析资产配置与投资决策，并标出资料来源。也可以查询近期财经讯息并展示原文链接。你可以查询完整资产历史；数据修改按设置中的 AI 权限处理。',
   },
 ];
 
 const ACTIVE_CONVERSATION_KEY = 'wealthflow-active-conversation';
 const toChatMessage = (item: AgentConversationMessage): ChatMessage => ({
-  id: item.id, role: item.role, content: item.content, steps: item.response?.steps, sources: item.response?.sources ?? [],
+  id: item.id, role: item.role, content: item.content, steps: item.response?.steps,
+  sources: item.response?.sources ?? [], newsSources: item.response?.newsSources ?? [],
 });
 
 const knowledgeTypeLabel = (type: KnowledgeSource['type']) => ({
@@ -394,7 +396,8 @@ const Agent: React.FC = () => {
 
       setMessages((previous) => previous.map((item) =>
         item.id === placeholderId
-          ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps, sources: result.sources ?? [] }
+          ? { id: saved.id, role: 'assistant', content: shownReply, steps: result.steps,
+              sources: result.sources ?? [], newsSources: result.newsSources ?? [] }
           : item));
       void refreshConversations().catch(() => {});
       if (unsupportedClaim) message.warning('模型没有返回有效草案，本次未修改数据');
@@ -577,7 +580,7 @@ const Agent: React.FC = () => {
     <>
       <PageHeader
         title="AI 助手"
-        subtitle="参考你的投资策略与知识资料，结合资产快照分析，并展示回答来源"
+        subtitle="参考投资策略与资产快照进行分析，查询近期财经讯息，并展示回答来源"
       />
 
       <Card size="small" title="会话" style={{ marginBottom: 16 }}
@@ -625,12 +628,15 @@ const Agent: React.FC = () => {
             />
 
             <div
+              className="agent-chat-messages"
               style={{
+                '--chat-scrollbar-thumb': hexToRgba(token.colorPrimary, 0.45),
+                '--chat-scrollbar-thumb-hover': token.colorPrimary,
                 height: 460,
                 overflowY: 'auto',
                 padding: 20,
                 background: token.colorBgLayout,
-              }}
+              } as React.CSSProperties}
             >
               {hasMoreMessages && <Button block size="small" onClick={loadOlder}
                 loading={loadingOlder} disabled={loadingConversation || sending}>加载更早消息</Button>}
@@ -666,6 +672,7 @@ const Agent: React.FC = () => {
                               {item.content}
                               {!!item.steps?.length && <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{item.steps.join(' → ')}</Text></div>}
                               {!!item.sources?.length && <KnowledgeSources sources={item.sources} />}
+                              {!!item.newsSources?.length && <NewsSources sources={item.newsSources} />}
                             </>
                           )}
                         </div>
@@ -705,7 +712,7 @@ const Agent: React.FC = () => {
               <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>
                 {pending && <Alert type="info" showIcon message="请先核对右侧草案并确认或取消，再继续对话" />}
               </Space>
-              <Space size={8} style={{ width: '100%', marginBottom: 12, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+              <Space className="agent-chat-suggestions" wrap size={8} style={{ width: '100%', marginBottom: 12 }}>
                 {SUGGESTIONS.map((suggestion) => (
                   <Button
                     key={suggestion}

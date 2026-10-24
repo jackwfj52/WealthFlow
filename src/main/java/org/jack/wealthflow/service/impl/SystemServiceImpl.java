@@ -35,6 +35,7 @@ public class SystemServiceImpl implements SystemService {
     public void clearAll() {
         // 先删快照明细再删分类，避免外键约束问题
         assetSnapshotMapper.deleteAll();
+        assetCategoryMapper.deleteAllHoldings();
         assetCategoryMapper.deleteAll();
     }
 

@@ -13,9 +13,13 @@ import { systemService as mockSystemService } from './mockSystem';
 import { apiCategoryService } from './apiCategories';
 import { apiSnapshotService } from './apiSnapshots';
 import { apiSystemService } from './apiSystem';
+import { apiHoldingService } from './apiHoldings';
+import { mockHoldingService } from './mockHoldings';
 
 /** 当前是否处于 Mock 模式（仅显式开启，默认走真实 API） */
 export const USE_MOCK: boolean = import.meta.env.VITE_USE_MOCK === 'true';
+
+export const holdingService = USE_MOCK ? mockHoldingService : apiHoldingService;
 
 export const categoryService: CategoryService = USE_MOCK
   ? mockCategoryService

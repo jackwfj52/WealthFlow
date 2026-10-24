@@ -7,6 +7,17 @@ export interface AssetCategory {
   createdAt: string; // YYYY-MM-DD
 }
 
+/** 资产类别内的当前持仓，占比单位为百分比（50 表示 50%）。 */
+export interface HoldingInput {
+  name: string;
+  percentage: number;
+}
+
+export interface AssetHolding extends HoldingInput {
+  id: string;
+  categoryId: string;
+}
+
 /** 快照明细项 —— 某一天某个分类的金额 */
 export interface SnapshotItem {
   categoryId: string;

@@ -1,0 +1,47 @@
+.agent-chat-messages {
+  scrollbar-width: thin;
+  scrollbar-color: var(--chat-scrollbar-thumb) transparent;
+  scrollbar-gutter: stable;
+}
+
+.agent-chat-messages:hover {
+  scrollbar-color: var(--chat-scrollbar-thumb-hover) transparent;
+}
+
+.agent-chat-messages::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.agent-chat-messages::-webkit-scrollbar-track,
+.agent-chat-messages::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.agent-chat-messages::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--chat-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+.agent-chat-messages::-webkit-scrollbar-thumb:hover {
+  background-color: var(--chat-scrollbar-thumb-hover);
+}
+
+.agent-chat-messages::-webkit-scrollbar-button {
+  display: none;
+}
+
+.agent-chat-suggestions > .ant-space-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.agent-chat-suggestions .ant-btn {
+  height: auto;
+  max-width: 100%;
+  padding: 4px 10px;
+  white-space: normal;
+  text-align: left;
+}

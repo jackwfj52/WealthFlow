@@ -7,6 +7,7 @@
  */
 import { apiClient } from './apiClient';
 import type { KnowledgeSource } from './apiKnowledge';
+import type { FinancialNewsArticle } from './apiFinancialNews';
 import type {
   CreateSnapshotDraftResult,
   DeleteSnapshotDraftResult,
@@ -39,6 +40,7 @@ export interface AgentChatResult {
   steps: string[];
   /** Older conversations predate source persistence. */
   sources?: KnowledgeSource[];
+  newsSources?: FinancialNewsArticle[];
 }
 
 export const apiAgentChat = {

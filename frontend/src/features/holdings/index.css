@@ -1,0 +1,17 @@
+@media (max-width: 575px) {
+  .holdings-page .ant-card-head {
+    padding-inline: 12px;
+  }
+
+  .holdings-page .ant-card-body {
+    padding: 12px;
+  }
+
+  .holdings-page .holdings-manage-label {
+    display: none;
+  }
+
+  .holdings-page .ant-table-thead th {
+    white-space: nowrap;
+  }
+}

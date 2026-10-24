@@ -4,7 +4,7 @@
  * Mock 实现与真实 API 实现保持完全相同的异步签名，
  * 页面组件只依赖接口，不感知数据来源。
  */
-import type { AssetCategory, AssetSnapshot, SnapshotItem } from '../types/domain';
+import type { AssetCategory, AssetSnapshot, SnapshotItem, HoldingInput } from '../types/domain';
 
 export interface CategoryService {
   getAll(): Promise<AssetCategory[]>;
@@ -55,7 +55,7 @@ export interface SystemService {
 
 export interface AssetBackupRestoreRequest {
   mode: 'merge' | 'overwrite';
-  categories: { name: string; color?: string }[];
+  categories: { name: string; color?: string; holdings?: HoldingInput[] }[];
   snapshots: { snapshotDate: string; items: { categoryName: string; amount: string }[] }[];
 }
 

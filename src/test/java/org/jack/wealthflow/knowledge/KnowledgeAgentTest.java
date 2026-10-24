@@ -32,7 +32,8 @@ class KnowledgeAgentTest {
         when(search.current(any())).thenReturn(true);
         actions=mock(BatchSnapshotActionService.class);
         agent=new ToolAgentChatService(providers,gateway,categories,mock(SnapshotQueryService.class),actions,
-                mock(AiSnapshotSimulationService.class),permissions,mock(PendingActionService.class),new ObjectMapper(),search);
+                mock(AiSnapshotSimulationService.class),permissions,mock(PendingActionService.class),new ObjectMapper(),search,
+                mock(org.jack.wealthflow.news.FinancialNewsService.class));
     }
     @Test void decisionReadsStrategiesAndPersistsValidatedSources() {
         when(gateway.complete(anyString(),anyString(),anyString(),anyString(),anyList()))

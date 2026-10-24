@@ -7,6 +7,7 @@ public enum ErrorCode {
     SNAPSHOT_NOT_FOUND(40402, 404, "该资产快照不存在"),
     CATEGORY_NAME_EXISTS(40901, 409, "名称已存在"),
     CATEGORY_HAS_SNAPSHOTS(40902, 409, "资产分类下存在快照，无法删除"),
+    CATEGORY_HAS_HOLDINGS(40909, 409, "资产分类下存在具体持仓，请先清空持仓再删除"),
     SNAPSHOT_DATE_EXISTS(40903, 409, "该日期已经存在快照，请使用编辑功能"),
 
     PENDING_ACTION_NOT_FOUND(40403, 404, "待确认操作不存在"),
@@ -27,7 +28,8 @@ public enum ErrorCode {
     DPAPI_DECRYPT_FAILED(50004, 500, "API Key 解密失败，无法读取该配置"),
 
     AI_MODEL_AUTH_FAILED(50010, 502, "模型服务认证失败，请检查 API Key"),
-    AI_MODEL_CALL_FAILED(50011, 502, "模型服务调用失败");
+    AI_MODEL_CALL_FAILED(50011, 502, "模型服务调用失败"),
+    FINANCIAL_NEWS_UNAVAILABLE(50012, 502, "财经讯息数据源暂时不可用");
 
     private final int code;
     private final int httpStatus;
