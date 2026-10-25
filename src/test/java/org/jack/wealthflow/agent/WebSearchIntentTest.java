@@ -18,4 +18,17 @@ class WebSearchIntentTest {
         assertFalse(WebSearchIntent.allowed(message));
         assertFalse(WebSearchIntent.requested(message));
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ZEC到底是啥", "ZEC是什么", "什么是隐私币", "介绍一下英伟达", "比特币有什么用", "ZEC是什么，现在价格多少？"})
+    void publicConceptsNeedBackgroundInformationWithoutExplicitSearchKeywords(String message) {
+        assertTrue(WebSearchIntent.background(message));
+        assertFalse(WebSearchIntent.requested(message));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ZEC最近表现如何", "查询英伟达最近新闻", "介绍我的持仓", "知识库里的规则是什么", "软件的分类是啥", "快照是什么", "本地笔记介绍"})
+    void pricesNewsAndLocalDataDoNotBecomePublicConceptLookups(String message) {
+        assertFalse(WebSearchIntent.background(message));
+    }
 }

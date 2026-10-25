@@ -13,12 +13,15 @@ public final class MarketIntent {
     private static final Pattern RECENT = Pattern.compile(
             "最新|最近|近期|近况|今日|今天|昨日|昨天|本周|这周|上周|本月|这个月|目前|当前|现在");
     private static final Pattern PERFORMANCE = Pattern.compile("行情|走势|涨跌|表现");
-    private static final Pattern CONCEPT = Pattern.compile("什么是|是什么|解释|科普|原理|定义|概念|如何.{0,6}(?:计算|理解|估值)");
+    private static final Pattern CONCEPT = Pattern.compile("什么是|是(?:什么|啥)|介绍|解释|科普|原理|定义|概念|如何.{0,6}(?:计算|理解|估值)");
+    private static final Pattern PERFORMANCE_REQUEST = Pattern.compile(
+            "(?:最近|近期|最新|当前|今天|本周).{0,6}(?:行情|走势|涨跌|表现)|(?:行情|走势|涨跌|表现)(?:如何|怎么样|怎样)");
 
     private MarketIntent() {}
 
     public static boolean currentMarket(String message) {
         return message != null && MARKET.matcher(message).find()
+                && (!CONCEPT.matcher(message).find() || PERFORMANCE_REQUEST.matcher(message).find())
                 && (RECENT.matcher(message).find()
                 || (PERFORMANCE.matcher(message).find() && !CONCEPT.matcher(message).find()));
     }
